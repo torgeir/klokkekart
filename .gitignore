@@ -1,0 +1,7 @@
+.direnv
+*.xcworkspace
+xcuserdata
+.DS_Store
+/proxy/tiles/
+/*.xcodeproj/xcshareddata/
+/*.xcodeproj/
