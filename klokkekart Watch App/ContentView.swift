@@ -78,6 +78,7 @@ struct ContentView: View {
                 }
             }
             else {
+                
                 ZStack {
                     GeometryReader { geometry in
                         ZStack {
@@ -118,11 +119,11 @@ struct ContentView: View {
                                         x: mapViewModel.dotX(),
                                         y: mapViewModel.dotY()
                                     )
-                                    .frame(width: 256.0,
-                                           height: 256.0,
+                                    .frame(width: 10.0,
+                                           height: 10.0,
                                            alignment: .center)
+                                
                             }
-                            
                         }
                         .focusable()
                         .digitalCrownRotation(
@@ -192,6 +193,12 @@ struct ContentView: View {
                     Copyright(mapViewModel.layer.copyright())
                         .position(x: centerX, y: maxY - 8)
                         .frame(maxWidth: maxX, alignment: .trailing)
+                    // TODO comment me out
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 10.0,
+                               height: 10.0,
+                               alignment: .center)
                 }
                 .frame(width: bounds.width, height: bounds.height)
                 .position(x: centerX, y: centerY)
