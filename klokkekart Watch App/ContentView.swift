@@ -81,6 +81,7 @@ struct ContentView: View {
                 
                 ZStack {
                     GeometryReader { geometry in
+                        
                         ZStack {
                             ForEach(mapViewModel.tiles, id: \.id) { tile in
                                 let w = CGFloat(tile.w)
@@ -100,30 +101,7 @@ struct ContentView: View {
                                         .frame(width: w, height: h, alignment: .center)
                                 }
                             }
-                            if (showSelf
-                                && mapViewModel.following
-                                && mapViewModel.locationManager.currentLocation != nil) {
-                                if (false && scenePhase == .active) {
-                                    ConeOfSight(amount: mapViewModel.headingPrecision)
-                                        .rotationEffect(
-                                            Angle(degrees: mapViewModel.heading + mapViewModel.headingOffsetSetting),
-                                            anchor: .center
-                                        )
-                                        .position(
-                                            x: centerX,
-                                            y: centerY
-                                        )
-                                }
-                                Dot(accuracy: mapViewModel.locationAccuracy)
-                                    .position(
-                                        x: mapViewModel.dotX(),
-                                        y: mapViewModel.dotY()
-                                    )
-                                    .frame(width: 10.0,
-                                           height: 10.0,
-                                           alignment: .center)
-                                
-                            }
+                            
                         }
                         .focusable()
                         .digitalCrownRotation(
@@ -149,6 +127,31 @@ struct ContentView: View {
                                 .onChanged { value in mapViewModel.handlePan(by: value) }
                                 .onEnded { _ in mapViewModel.commitPan() })
                         .onAppear { mapViewModel.updateZoom() }
+                        ZStack {
+                            if (showSelf
+                                && mapViewModel.following
+                                && mapViewModel.locationManager.currentLocation != nil) {
+                                if (false && scenePhase == .active) {
+                                    ConeOfSight(amount: mapViewModel.headingPrecision)
+                                        .rotationEffect(
+                                            Angle(degrees: mapViewModel.heading + mapViewModel.headingOffsetSetting),
+                                            anchor: .center
+                                        )
+                                        .position(
+                                            x: centerX,
+                                            y: centerY
+                                        )
+                                }
+                            Dot(accuracy: mapViewModel.locationAccuracy)
+                                .position(
+                                    x: mapViewModel.dotX(),
+                                    y: mapViewModel.dotY()
+                                )
+                                .frame(width: 100.0,
+                                       height: 100.0,
+                                       alignment: .center)
+                            }
+                        }
                     }
                     .rotationEffect(
                         Angle(degrees: mapViewModel.mapRotation()),

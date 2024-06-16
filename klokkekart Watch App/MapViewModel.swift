@@ -199,7 +199,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let newTilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
         let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
         let tile = Tile(tilepos: googletilepos, z: zoom)
-        
         self.tile = tile
         
         loadTiles()
@@ -250,6 +249,29 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.panOffsetY = .zero
     }
     
+    func centerX() -> CGFloat {
+        offsetX + panOffsetX + CGFloat(maxWidth / 2)
+    }
+    func centerY() -> CGFloat {
+        offsetY + panOffsetY + CGFloat(maxHeight / 2)
+    }
+    
+    func dotX() -> CGFloat {
+        centerX()
+    }
+    func dotY() -> CGFloat {
+        centerY()
+    }
+    
+    func tileOffsetX(tile: Tile) -> CGFloat {
+        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - initialTx)
+    }
+    
+    func tileOffsetY(tile: Tile) -> CGFloat {
+        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - initialTy)
+    }
+    
+    
     func zoomTo(latlon: Latlon) {
         dotLatlon = latlon
         locationMeters = proj.LatlonToMeters(latlon: latlon)
@@ -285,6 +307,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         self.offsetX = centerOffsetX
         self.offsetY = -centerOffsetY
+        self.dotOffsetX = centerOffsetX
+        self.dotOffsetY = -centerOffsetY
         
         #if DEBUG
         print("latlon \(proj.MetersToLatLon(meters: locationMeters))")
@@ -354,29 +378,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #endif
         
         return visible
-    }
-    
-    func centerX() -> CGFloat {
-        offsetX + panOffsetX + CGFloat(maxWidth / 2)
-    }
-    
-    func centerY() -> CGFloat {
-        offsetY + panOffsetY + CGFloat(maxHeight / 2)
-    }
-    
-    func dotX() -> CGFloat {
-        centerX()
-    }
-    func dotY() -> CGFloat {
-        centerY()
-    }
-    
-    func tileOffsetX(tile: Tile) -> CGFloat {
-        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - initialTx)
-    }
-    
-    func tileOffsetY(tile: Tile) -> CGFloat {
-        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - initialTy)
     }
     
     func loadCachedImages() {
