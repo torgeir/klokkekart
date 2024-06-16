@@ -12,12 +12,11 @@ import Combine
 let trh = Latlon(lat: 63.43031, lon: 10.39442)
 let atlanterhavsvegen = Latlon(lat: 63.01065256682027, lon: 7.310695024414056)
 let nidarosdomen = Latlon(lat: 63.42675542661573, lon: 10.397386651184862)
-let galdhøpiggen = Latlon(lat: 61.63442902460937, lon: 8.339096413811093)
-let defaultLatLon = nidarosdomen
+let defaultLatLon = trh
 
 let padding = 0,
     tileSize = 256,
-    defaultZoom = 4
+    defaultZoom = 17
 
 let proj = GlobalMercator(tileSize: tileSize)
 
@@ -71,13 +70,17 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var panOffsetX: CGFloat = .zero
     @Published var panOffsetY: CGFloat = .zero
     
+    private var dotLatlon: Latlon? = nil
+    @Published var dotOffsetX: CGFloat = .zero
+    @Published var dotOffsetY: CGFloat = .zero
+    
     @AppStorage("nightModeSetting") var nightModeSetting: Bool = false
     @AppStorage("headingOffsetSetting") var headingOffsetSetting: Double = .zero
     @AppStorage("selectedLayerIdSetting") var selectedLayerIdSetting: String = defaultLayers[0].id
     
     @AppStorageCodable(key: "customLayersSetting", defaultValue: []) var customLayersStorage: [String]
-    
     @Published var layers: [any Layer] = defaultLayers
+
     @Published var following: Bool = false
     @Published var locationAccuracy: CLLocationAccuracy = -1
     @Published var heading: CLLocationDegrees = .zero
@@ -173,40 +176,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func handlePan(by: DragGesture.Value) {
-        self.stopFollow()
+        //self.stopFollow()
         self.stopRotateMap()
+        
         self.panOffsetX = by.translation.width
         self.panOffsetY = by.translation.height
         
         // don't save meters, just calculate the current center tile
-        let (tile, _) = calculateCenter(meters: meters, zoom: zoom)
-        self.tile = tile
-        
-        loadTiles()
-    }
-
-    func commitPan() {
-        #if DEBUG
-        print("commit pan \(panOffsetX),\(panOffsetY)")
-        #endif
-        
-        self.offsetX += panOffsetX
-        self.offsetY += panOffsetY
-        
-        // save meters, as the current center has now changed
-        let (tile, meters) = calculateCenter(meters: meters, zoom: zoom)
-        self.tile = tile
-        self.meters = meters
-        #if DEBUG
-        print("meters @ \(meters)")
-        print("latlon @ \(proj.MetersToLatLon(meters: meters))")
-        #endif
-
-        self.panOffsetX = .zero
-        self.panOffsetY = .zero
-    }
-    
-    func calculateCenter(meters: Meters, zoom: Int) -> (Tile, Meters) {
         let oldPixels = proj.MetersToPixels(meters: meters, zoom: zoom)
         #if false
         print("pixels was \(oldPixels)")
@@ -223,17 +199,57 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
         let tile = Tile(tilepos: googletilepos, z: zoom)
         
-        #if false
-        print("pixels now \(pixels)")
-        print("meters now \(meters)")
-        print("moved meters \(self.meters.absSub(meters: proj.PixelsToMeters(pixels: oldPixels, zoom: zoom)))")
-        print("latlon now \(proj.MetersToLatLon(meters: meters))")
+        self.tile = tile
+        
+        loadTiles()
+    }
+
+    func commitPan() {
+        #if DEBUG
+        print("commit pan \(panOffsetX),\(panOffsetY)")
         #endif
         
-        return (tile, meters)
+        self.offsetX += panOffsetX
+        self.offsetY += panOffsetY
+        self.dotOffsetX += panOffsetX
+        self.dotOffsetY += panOffsetY
+        
+        // save meters, as the current center has now changed
+        let oldPixels = proj.MetersToPixels(meters: meters, zoom: zoom)
+        let tilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
+        let topLeftMeters = proj.TileTopLeftMeters(tilepos: tilepos, zoom: zoom)
+        let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
+        let pxy = oldPixels.sub(pixels: topLeftPixels)
+        print("pxy \(pxy)")
+        
+        #if false
+        print("pixels was \(oldPixels)")
+        print("meters was \(meters)")
+        #endif
+        
+        let pixels = Pixels(
+            px: oldPixels.px - panOffsetX,
+            py: oldPixels.py + panOffsetY
+        )
+        
+        let meters = proj.PixelsToMeters(pixels: pixels, zoom: zoom)
+        let newTilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
+        let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
+        let tile = Tile(tilepos: googletilepos, z: zoom)
+        
+        self.tile = tile
+        self.meters = meters
+        #if DEBUG
+        print("meters @ \(meters)")
+        print("latlon @ \(proj.MetersToLatLon(meters: meters))")
+        #endif
+
+        self.panOffsetX = .zero
+        self.panOffsetY = .zero
     }
     
     func zoomTo(latlon: Latlon) {
+        dotLatlon = latlon
         meters = proj.LatlonToMeters(latlon: latlon)
         updateZoom()
     }
@@ -266,6 +282,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.offsetX = centerOffsetX
         self.offsetY = -centerOffsetY
         
+        self.dotOffsetX = centerOffsetX
+        self.dotOffsetY = -centerOffsetY
         #if DEBUG
         print("pixels \(pixels)")
         print("pixel offset \(centerOffsetX),\(centerOffsetY)")
@@ -296,7 +314,9 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func loadTiles() {
-        self.tiles = ([tile] + neighbors(tile: tile)).filter(isTileVisible)
+        self.tiles = ([tile] 
+                      //+ neighbors(tile: tile)
+        ).filter(isTileVisible)
         self.tiles.forEach(pullImage)
         self.loadCachedImages()
         
@@ -339,6 +359,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     func centerY() -> CGFloat {
         offsetY + panOffsetY + CGFloat(maxHeight / 2)
+    }
+    
+    func dotX() -> CGFloat {
+        0
+    }
+    func dotY() -> CGFloat {
+        0
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {

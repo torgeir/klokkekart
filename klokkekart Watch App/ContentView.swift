@@ -96,13 +96,13 @@ struct ContentView: View {
                                 } else {
                                     tile.color
                                         .position(x: x, y: y)
-                                        .frame(width: w, height: h)
+                                        .frame(width: w, height: h, alignment: .center)
                                 }
                             }
                             if (showSelf
                                 && mapViewModel.following
                                 && mapViewModel.locationManager.currentLocation != nil) {
-                                if (scenePhase == .active) {
+                                if (false && scenePhase == .active) {
                                     ConeOfSight(amount: mapViewModel.headingPrecision)
                                         .rotationEffect(
                                             Angle(degrees: mapViewModel.heading + mapViewModel.headingOffsetSetting),
@@ -115,9 +115,12 @@ struct ContentView: View {
                                 }
                                 Dot(accuracy: mapViewModel.locationAccuracy)
                                     .position(
-                                        x: centerX,
-                                        y: centerY
+                                        x: mapViewModel.dotX(),
+                                        y: mapViewModel.dotY()
                                     )
+                                    .frame(width: 256.0,
+                                           height: 256.0,
+                                           alignment: .center)
                             }
                             
                         }
@@ -199,18 +202,25 @@ struct ContentView: View {
                     switch scenePhase {
                     case .active:
                         print("schenePhase: active")
+                        if (mapViewModel.following) {
+                            mapViewModel.locationManager.startListening()
+                        }
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyBestForNavigation,
                             distanceFilter: 10.0
                         )
                     case .inactive:
                         print("schenePhase: inactive")
+                        if (mapViewModel.following) {
+                            mapViewModel.locationManager.startListening()
+                        }
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyHundredMeters,
                             distanceFilter: 100.0
                         )
                     default:
                         print("schenePhase: background")
+                        mapViewModel.locationManager.stop()
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyThreeKilometers,
                             distanceFilter: 1000.0
