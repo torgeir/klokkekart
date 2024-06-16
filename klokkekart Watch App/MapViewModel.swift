@@ -97,9 +97,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
         listenForCoordinates()
-        
-        // TODO remove
-        self.following = true
     }
     
     func allLayers() -> [any Layer] {
@@ -368,7 +365,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     func loadTiles() {
         self.tiles = ([tile] 
-                      //+ neighbors(tile: tile)
+                      + neighbors(tile: tile)
         ).filter(isTileVisible)
         self.tiles.forEach(pullImage)
         self.loadCachedImages()

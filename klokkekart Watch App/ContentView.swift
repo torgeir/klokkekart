@@ -20,8 +20,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     
     @State var isChooseMap = false
-    @State var showSelf = true
-
+    
     var body: some View {
         NightMode(isOn: mapViewModel.nightModeSetting) {
             if (isChooseMap) {
@@ -121,35 +120,40 @@ struct ContentView: View {
                             }
                         )
                         .onTapGesture(count: 2) { mapViewModel.zoomIn() }
-                        //.onTapGesture(count: 1) { showSelf.toggle() }
                         .gesture(
                             DragGesture()
                                 .onChanged { value in mapViewModel.handlePan(by: value) }
                                 .onEnded { _ in mapViewModel.commitPan() })
                         .onAppear { mapViewModel.zoomToCenter() }
                         ZStack {
-                            if (showSelf
-                                && mapViewModel.following
+                            if (mapViewModel.following
                                 && mapViewModel.locationManager.currentLocation != nil) {
-                                if (false && scenePhase == .active) {
+                                if (scenePhase == .active) {
                                     ConeOfSight(amount: mapViewModel.headingPrecision)
                                         .rotationEffect(
-                                            Angle(degrees: mapViewModel.heading + mapViewModel.headingOffsetSetting),
+                                            Angle(degrees: 40 + mapViewModel.headingOffsetSetting),
                                             anchor: .center
                                         )
+                                        //.border(.yellow)
                                         .position(
-                                            x: centerX,
-                                            y: centerY
+                                            x: mapViewModel.dotX(),
+                                            y: mapViewModel.dotY()
                                         )
+                                        .frame(width: 100.0,
+                                               height: 100.0,
+                                               alignment: .center)
+                                        
                                 }
-                            Dot(accuracy: mapViewModel.locationAccuracy)
-                                .position(
-                                    x: mapViewModel.dotX(),
-                                    y: mapViewModel.dotY()
-                                )
-                                .frame(width: 100.0,
-                                       height: 100.0,
-                                       alignment: .center)
+                                Dot(accuracy: mapViewModel.locationAccuracy)
+                                    //.border(.green)
+                                    .position(
+                                        x: mapViewModel.dotX(),
+                                        y: mapViewModel.dotY()
+                                    )
+                                    .frame(width: 100.0,
+                                           height: 100.0,
+                                           alignment: .center)
+                                    
                             }
                         }
                     }
@@ -196,11 +200,11 @@ struct ContentView: View {
                     Copyright(mapViewModel.layer.copyright())
                         .position(x: centerX, y: maxY - 8)
                         .frame(maxWidth: maxX, alignment: .trailing)
-                    // TODO comment me out
+                    // TODO debug center
                     Circle()
-                        .fill(.red)
-                        .frame(width: 10.0,
-                               height: 10.0,
+                        .fill(.clear)
+                        .frame(width: 5.0,
+                               height: 5.0,
                                alignment: .center)
                 }
                 .frame(width: bounds.width, height: bounds.height)
