@@ -117,7 +117,7 @@ struct ContentView: View {
                             },
                             onIdle: {
                                 print("zoom is \(mapViewModel.zoom)")
-                                mapViewModel.updateZoom()
+                                mapViewModel.zoomToCenter()
                             }
                         )
                         .onTapGesture(count: 2) { mapViewModel.zoomIn() }
@@ -126,7 +126,7 @@ struct ContentView: View {
                             DragGesture()
                                 .onChanged { value in mapViewModel.handlePan(by: value) }
                                 .onEnded { _ in mapViewModel.commitPan() })
-                        .onAppear { mapViewModel.updateZoom() }
+                        .onAppear { mapViewModel.zoomToCenter() }
                         ZStack {
                             if (showSelf
                                 && mapViewModel.following

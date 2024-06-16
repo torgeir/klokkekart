@@ -50,6 +50,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var initialTx: Int = .zero
     private var initialTy: Int = .zero
     
+    private var centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     private var locationMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     
     @Published var tiles: [Tile] = []
@@ -71,7 +72,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var panOffsetX: CGFloat = .zero
     @Published var panOffsetY: CGFloat = .zero
     
-    private var dotLatlon: Latlon? = nil
     @Published var dotOffsetX: CGFloat = .zero
     @Published var dotOffsetY: CGFloat = .zero
     
@@ -95,7 +95,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             .first(where: { layer in layer.id == selectedLayerIdSetting}) {
                 changeLayer(layer: layer)
             }
+        centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
         listenForCoordinates()
+        
+        // TODO remove
+        self.following = true
     }
     
     func allLayers() -> [any Layer] {
@@ -155,7 +159,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             .sink { [weak self] loc in
                 guard let self = self else { return }
                 guard let coord = loc?.coordinate else { return }
-                self.zoomTo(latlon: Latlon(lat: coord.latitude, lon: coord.longitude))
+                let latlon = Latlon(lat: coord.latitude, lon: coord.longitude)
+                self.locationMeters = proj.LatlonToMeters(latlon: latlon)
+                updateZoom(zoomToMeters: locationMeters)
+                
                 self.locationAccuracy = loc?.horizontalAccuracy ?? -1
             }
             .store(in: &cancellables)
@@ -184,7 +191,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.panOffsetY = by.translation.height
         
         // don't save meters, just calculate the current center tile
-        let oldPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
+        let oldPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
         #if false
         print("pixels was \(oldPixels)")
         print("meters was \(locationMeters)")
@@ -214,11 +221,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.dotOffsetX += panOffsetX
         self.dotOffsetY += panOffsetY
         
-        let meterPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
-        let tilepos = proj.MetersToTilepos(meters: locationMeters, zoom: zoom)
+        let centerPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
+        let tilepos = proj.MetersToTilepos(meters: centerMeters, zoom: zoom)
         let topLeftMeters = proj.TileTopLeftMeters(tilepos: tilepos, zoom: zoom)
         let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
-        let centerOfScreenIsAtPixelsFromTileBottomLeft = meterPixels.sub(pixels: topLeftPixels)
+        let centerOfScreenIsAtPixelsFromTileBottomLeft = centerPixels.sub(pixels: topLeftPixels)
         print("centerOfScreenIsAtPixelsFromTileBottomLeft \(centerOfScreenIsAtPixelsFromTileBottomLeft)")
         
         #if false
@@ -228,21 +235,21 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // drag map to the left  is -panOffset
         // drag map to the right is +panOffset
-        let pixels = Pixels(
-            px: meterPixels.px - panOffsetX,
-            py: meterPixels.py + panOffsetY
+        let newCenterPixels = Pixels(
+            px: centerPixels.px - panOffsetX,
+            py: centerPixels.py + panOffsetY
         )
         
-        let meters = proj.PixelsToMeters(pixels: pixels, zoom: zoom)
-        let newTilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
+        let newMeters = proj.PixelsToMeters(pixels: newCenterPixels, zoom: zoom)
+        self.centerMeters = newMeters
+        
+        let newTilepos = proj.MetersToTilepos(meters: newMeters, zoom: zoom)
         let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
         let tile = Tile(tilepos: googletilepos, z: zoom)
-        
         self.tile = tile
-        self.locationMeters = meters
+        
         #if DEBUG
-        print("meters @ \(locationMeters)")
-        print("latlon @ \(proj.MetersToLatLon(meters: locationMeters))")
+        print("center meters (after pan) @ \(centerMeters)")
         #endif
 
         self.panOffsetX = .zero
@@ -257,10 +264,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func dotX() -> CGFloat {
-        centerX()
+        centerX() - offsetX
     }
     func dotY() -> CGFloat {
-        centerY()
+        centerY() - offsetY
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {
@@ -270,55 +277,65 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func tileOffsetY(tile: Tile) -> CGFloat {
         CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - initialTy)
     }
-    
-    
-    func zoomTo(latlon: Latlon) {
-        dotLatlon = latlon
-        locationMeters = proj.LatlonToMeters(latlon: latlon)
-        updateZoom()
-    }
-    
+
     func zoomIn() {
         zoom = min(zoom + 1, layer.zoomMax())
-        updateZoom()
+        zoomToCenter()
     }
     
-    func updateZoom() {
+    func zoomToCenter() {
+        updateZoom(zoomToMeters: centerMeters)
+    }
+    
+    func updateZoom(zoomToMeters: Meters) {
         self.tileFetcher.resetPreventFetchCache()
         
         // zoom has already been set before this code is run,
         // so this code calculates how it affects the placement
         // of the tile on screen (the offset from the center)
         
-        // map tile is by default rendered screen center
-        // offset it by
+        // map tile is by default rendered at screen center
         
-        let tilepos = proj.MetersToTilepos(meters: locationMeters, zoom: zoom)
+        // find the correct tile, that contains the meter value
+        let tilepos = proj.MetersToTilepos(meters: zoomToMeters, zoom: zoom)
         let googletilepos = proj.toGoogleTilepos(tilepos: tilepos, zoom: zoom)
         self.tile = Tile(tilepos: googletilepos, z: zoom)
         self.initialTx = tile.tilepos.tx
         self.initialTy = tile.tilepos.ty
         
+        // find the center of the tile, and calculate the distance from the location
         let tileCenterMeters = proj.TileCenterMeters(tilepos: tilepos, zoom: zoom)
         let tileCenterPixels = proj.MetersToPixels(meters: tileCenterMeters, zoom: zoom)
-        let pixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
-        let centerOffsetX = tileCenterPixels.px - pixels.px
-        let centerOffsetY = tileCenterPixels.py - pixels.py
-        
+        let locationPixels = proj.MetersToPixels(meters: zoomToMeters, zoom: zoom)
+        let centerOffsetX = tileCenterPixels.px - locationPixels.px
+        let centerOffsetY = tileCenterPixels.py - locationPixels.py
+        // pos x => right
+        // pos y => down
         self.offsetX = centerOffsetX
         self.offsetY = -centerOffsetY
+        
+        //let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
+        //let dotCenterOffsetX = tileCenterPixels.px - dotLocationPixels.px
+        //let dotCenterOffsetY = tileCenterPixels.py - dotLocationPixels.py
+        // pos x => right
+        // pos y => down
         self.dotOffsetX = centerOffsetX
         self.dotOffsetY = -centerOffsetY
         
+        self.centerMeters = zoomToMeters
         #if DEBUG
-        print("latlon \(proj.MetersToLatLon(meters: locationMeters))")
-        print("pixels \(pixels)")
-        print("pixel offset \(centerOffsetX),\(centerOffsetY)")
-        print("final pixel offset \(self.offsetX),\(self.offsetY)")
+        print("center meters (after zoom) @ \(centerMeters)")
         #endif
         
         //render at center screen, without respecting position
         //self.offsetX = 0; self.offsetY = 0;
+        
+        #if DEBUG
+        print("latlon \(proj.MetersToLatLon(meters: locationMeters))")
+        print("pixels \(locationPixels)")
+        print("pixel offset \(centerOffsetX),\(centerOffsetY)")
+        print("final pixel offset \(self.offsetX),\(self.offsetY)")
+        #endif
         
         self.loadTiles()
     }
