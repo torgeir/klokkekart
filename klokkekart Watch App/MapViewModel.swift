@@ -16,7 +16,7 @@ let nidarosdomen = Latlon(lat: 63.42675542661573, lon: 10.397386651184862)
 let defaultLatLon = olavt
 
 let padding = 0,
-    tileSize = 100,
+    tileSize = 256,
     defaultZoom = 17
 
 let proj = GlobalMercator(tileSize: tileSize)
@@ -83,6 +83,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var layers: [any Layer] = defaultLayers
 
     @Published var following: Bool = false
+    @Published var followOverridden: Bool = false
     @Published var locationAccuracy: CLLocationAccuracy = -1
     @Published var heading: CLLocationDegrees = .zero
     @Published var headingPrecision: CLLocationDegrees = 1
@@ -135,6 +136,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     func follow() {
         locationManager.startListening()
+        followOverridden = false
         following = true
     }
     
@@ -158,7 +160,12 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 guard let coord = loc?.coordinate else { return }
                 let latlon = Latlon(lat: coord.latitude, lon: coord.longitude)
                 self.locationMeters = proj.LatlonToMeters(latlon: latlon)
-                updateZoom(zoomToMeters: locationMeters)
+                if (self.followOverridden) {
+                    self.setDotOffset(newCenterPixels: proj.MetersToPixels(meters: centerMeters, zoom: zoom))
+                }
+                else {
+                    self.updateZoom(zoomToMeters: locationMeters)
+                }
                 
                 self.locationAccuracy = loc?.horizontalAccuracy ?? -1
             }
@@ -181,8 +188,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func handlePan(by: DragGesture.Value) {
-        //self.stopFollow()
-        self.stopRotateMap()
+        if (following) {
+            followOverridden = true
+        } else {
+            followOverridden = false
+        }
+        // TODO ??
+        //self.stopRotateMap()
         
         self.panOffsetX = by.translation.width
         self.panOffsetY = by.translation.height
@@ -253,7 +265,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.panOffsetY = .zero
         
     
-        // TODO her
+        self.setDotOffset(newCenterPixels: newCenterPixels)
+    }
+    
+    func setDotOffset(newCenterPixels: Pixels) {
         let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
         let dotCenterOffsetX = newCenterPixels.px - dotLocationPixels.px
         let dotCenterOffsetY = newCenterPixels.py - dotLocationPixels.py
@@ -325,13 +340,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("center meters (after zoom) @ \(centerMeters)")
         #endif
         
-        // TODO her
-        let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
-        let dotCenterOffsetX = zoomToPixels.px - dotLocationPixels.px
-        let dotCenterOffsetY = zoomToPixels.py - dotLocationPixels.py
-        print("dot offset \(dotCenterOffsetX),\(dotCenterOffsetY)")
-        self.dotOffsetX = offsetX + dotCenterOffsetX
-        self.dotOffsetY = offsetY - dotCenterOffsetY
+        self.setDotOffset(newCenterPixels: zoomToPixels)
         
         //render at center screen, without respecting position
         //self.offsetX = 0; self.offsetY = 0;

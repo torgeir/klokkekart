@@ -131,7 +131,7 @@ struct ContentView: View {
                                 if (scenePhase == .active) {
                                     ConeOfSight(amount: mapViewModel.headingPrecision)
                                         .rotationEffect(
-                                            Angle(degrees: 40 + mapViewModel.headingOffsetSetting),
+                                            Angle(degrees: mapViewModel.heading + mapViewModel.headingOffsetSetting),
                                             anchor: .center
                                         )
                                         //.border(.yellow)
