@@ -204,7 +204,7 @@ struct ContentView: View {
                     
                     if mapViewModel.crosshairSetting {
                         let crosshairOpacity = 1.0
-                        let crosshairColor: Color = .red
+                        let crosshairColor: Color = mapViewModel.nightModeSetting ? .black : .red
                         Rectangle()
                             .strokeBorder(crosshairColor.opacity(crosshairOpacity), lineWidth: 1)
                             .frame(width: 2.0, height: 10.0, alignment: .center)
