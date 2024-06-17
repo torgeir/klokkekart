@@ -49,9 +49,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     let maxWidth = Int(bounds.width);
     let maxHeight = Int(bounds.height);
     
-    private var initialTx: Int = .zero
-    private var initialTy: Int = .zero
-    
     private var centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     private var locationMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     
@@ -167,7 +164,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     self.setDotOffset(newCenterMeters: centerMeters)
                 }
                 else {
-                    self.updateZoom(zoomToMeters: locationMeters)
+                    self.updateZoom(newCenterMeters: locationMeters)
                 }
                 
                 self.locationAccuracy = loc?.horizontalAccuracy ?? -1
@@ -190,49 +187,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             .store(in: &cancellables)
     }
     
-    func calculateNewCenterMeters(centerMeters: Meters) -> Meters {
-        // pixels are measured from left,bottom => 0,0
-        
-        // don't save meters, as we have not moved,
-        // just calculate the current center tile as we peak around
-        let oldCenterMeters = self.centerMeters
-        let oldCenterPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
-        
-        #if false
-        let tilepos = proj.MetersToTilepos(meters: oldCenterMeters, zoom: zoom)
-        let topLeftMeters = proj.TileTopLeftMeters(tilepos: tilepos, zoom: zoom)
-        let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
-        let centerOfScreenIsAtPixelsFromTileBottomLeft =
-            oldCenterPixels.sub(pixels: topLeftPixels)
-        print("centerOfScreenIsAtPixelsFromTileBottomLeft \(centerOfScreenIsAtPixelsFromTileBottomLeft)")
-        #endif
-        #if false
-        print("pixels was \(oldPixels)")
-        print("meters was \(locationMeters)")
-        #endif
-        
-        let newCenterPixels = Pixels(
-            // drag towards right should decrease pixels.px => panOffsetX is positive
-            px: oldCenterPixels.px - self.panOffsetX,
-            // drag towards top should decrease pixels.py => panOffsetY is negative
-            py: oldCenterPixels.py + self.panOffsetY
-        )
-        let newCenterMeters = proj.PixelsToMeters(pixels: newCenterPixels, zoom: zoom)
-        
-        #if DEBUG
-        print("pixels are \(newCenterPixels)")
-        print("meters are \(newCenterMeters)")
-        #endif
-        
-        return newCenterMeters
-    }
-    
-    func tileForMeters(meters: Meters) -> Tile {
-        let newTilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
-        let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
-        let tile = Tile(tilepos: googletilepos, z: zoom)
-        return tile
-    }
 
     func handlePan(by: DragGesture.Value) {
         if (following) {
@@ -284,6 +238,43 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.setDotOffset(newCenterMeters: newCenterMeters)
     }
     
+    func calculateNewCenterMeters(centerMeters: Meters) -> Meters {
+        // pixels are measured from left,bottom => 0,0
+        
+        // don't save meters, as we have not moved,
+        // just calculate the current center tile as we peak around
+        let oldCenterMeters = self.centerMeters
+        let oldCenterPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
+        
+        #if false
+        let tilepos = proj.MetersToTilepos(meters: oldCenterMeters, zoom: zoom)
+        let topLeftMeters = proj.TileTopLeftMeters(tilepos: tilepos, zoom: zoom)
+        let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
+        let centerOfScreenIsAtPixelsFromTileBottomLeft =
+            oldCenterPixels.sub(pixels: topLeftPixels)
+        print("centerOfScreenIsAtPixelsFromTileBottomLeft \(centerOfScreenIsAtPixelsFromTileBottomLeft)")
+        #endif
+        #if false
+        print("pixels was \(oldPixels)")
+        print("meters was \(locationMeters)")
+        #endif
+        
+        let newCenterPixels = Pixels(
+            // drag towards right should decrease pixels.px => panOffsetX is positive
+            px: oldCenterPixels.px - self.panOffsetX,
+            // drag towards top should decrease pixels.py => panOffsetY is negative
+            py: oldCenterPixels.py + self.panOffsetY
+        )
+        let newCenterMeters = proj.PixelsToMeters(pixels: newCenterPixels, zoom: zoom)
+        
+        #if DEBUG
+        print("pixels are \(newCenterPixels)")
+        print("meters are \(newCenterMeters)")
+        #endif
+        
+        return newCenterMeters
+    }
+    
     func setDotOffset(newCenterMeters: Meters) {
         let newCenterPixels = proj.MetersToPixels(meters: newCenterMeters, zoom: zoom)
         let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
@@ -298,6 +289,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func centerX() -> CGFloat {
         offsetX + panOffsetX + CGFloat(maxWidth / 2)
     }
+    
     func centerY() -> CGFloat {
         offsetY + panOffsetY + CGFloat(maxHeight / 2)
     }
@@ -305,16 +297,17 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func dotX() -> CGFloat {
         centerX() - dotOffsetX
     }
+    
     func dotY() -> CGFloat {
         centerY() - dotOffsetY
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {
-        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - initialTx)
+        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - self.tile.tilepos.tx)
     }
     
     func tileOffsetY(tile: Tile) -> CGFloat {
-        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - initialTy)
+        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - self.tile.tilepos.ty)
     }
 
     func zoomIn() {
@@ -323,10 +316,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func zoomToCenter() {
-        updateZoom(zoomToMeters: centerMeters)
+        updateZoom(newCenterMeters: centerMeters)
     }
     
-    func updateZoom(zoomToMeters: Meters) {
+    func updateZoom(newCenterMeters: Meters) {
         self.tileFetcher.resetPreventFetchCache()
         
         // zoom has already been set before this code is run,
@@ -338,49 +331,52 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let oldCenterMeters = self.centerMeters
         
         // find the correct tile, that contains the meter value
-        let tilepos = proj.MetersToTilepos(meters: zoomToMeters, zoom: zoom)
-        let googletilepos = proj.toGoogleTilepos(tilepos: tilepos, zoom: zoom)
-        self.tile = Tile(tilepos: googletilepos, z: zoom)
-        
-        self.initialTx = tile.tilepos.tx
-        self.initialTy = tile.tilepos.ty
+        self.tile = self.tileForMeters(meters: newCenterMeters)
         
         // find the center of the tile, and calculate the distance from the location
-        let tileCenterMeters = proj.TileCenterMeters(tilepos: tilepos, zoom: zoom)
-        let tileCenterPixels = proj.MetersToPixels(meters: tileCenterMeters, zoom: zoom)
-        let zoomToPixels = proj.MetersToPixels(meters: zoomToMeters, zoom: zoom)
+        let newTilepos = proj.MetersToTilepos(meters: newCenterMeters, zoom: zoom)
+        let newTileCenterMeters = proj.TileCenterMeters(tilepos: newTilepos, zoom: zoom)
+        let newTileCenterPixels = proj.MetersToPixels(meters: newTileCenterMeters, zoom: zoom)
+        let newCenterPixels = proj.MetersToPixels(meters: newCenterMeters, zoom: zoom)
         
         // this is always ok as we want to offset the tile from the center
         // if zoomToPixels is to the top right of the tileCenterPixels
         // the x offset should become negative, to move the tile left along the
         // x axis, and the y offset should become positive, to move the tile down
         // along the y axis
-        let centerOffsetX = tileCenterPixels.px - zoomToPixels.px
-        let centerOffsetY = tileCenterPixels.py - zoomToPixels.py
+        let centerOffsetX = newTileCenterPixels.px - newCenterPixels.px
+        let centerOffsetY = newTileCenterPixels.py - newCenterPixels.py
         
         // offsetX > 0 => right
         // offsetY > 0 => down
         self.offsetX = centerOffsetX
         self.offsetY = -centerOffsetY
         
-        self.centerMeters = zoomToMeters
+        self.centerMeters = newCenterMeters
         self.setDotOffset(newCenterMeters: self.centerMeters)
         
         #if DEBUG
-        let topLeftMeters = proj.TileTopLeftMeters(tilepos: tilepos, zoom: zoom)
+        let topLeftMeters = proj.TileTopLeftMeters(tilepos: newTilepos, zoom: zoom)
         let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
         print("tile top left: meters: \(topLeftMeters)")
         print("tile top left: pixels: \(topLeftPixels)")
         print("center: meters: \(centerMeters)")
-        print("center: pixels: \(proj.MetersToPixels(meters: zoomToMeters, zoom: zoom))")
-        print("center: latlon: \(proj.MetersToLatLon(meters: zoomToMeters))")
-        print("moved meters: \(zoomToMeters.absSub(meters: oldCenterMeters))")
+        print("center: pixels: \(proj.MetersToPixels(meters: newCenterMeters, zoom: zoom))")
+        print("center: latlon: \(proj.MetersToLatLon(meters: newCenterMeters))")
+        print("moved meters: \(newCenterMeters.absSub(meters: oldCenterMeters))")
         #endif
         
         //render at center screen, without respecting position
         //self.offsetX = 0; self.offsetY = 0;
         
         self.loadTiles()
+    }
+    
+    func tileForMeters(meters: Meters) -> Tile {
+        let newTilepos = proj.MetersToTilepos(meters: meters, zoom: zoom)
+        let googletilepos = proj.toGoogleTilepos(tilepos: newTilepos, zoom: zoom)
+        let tile = Tile(tilepos: googletilepos, z: zoom)
+        return tile
     }
     
     func tileUrl(tile: Tile) -> NSString {
