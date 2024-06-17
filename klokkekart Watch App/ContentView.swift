@@ -64,6 +64,7 @@ struct ContentView: View {
                             }
                         }
                         Toggle("Night mode", isOn: $mapViewModel.nightModeSetting)
+                        Toggle("Show center", isOn: $mapViewModel.crosshairSetting)
                         NavigationLink("Terms of Use", destination: SettingTermsOfUse())
                     }
                     .navigationTitle("Settings")
@@ -200,12 +201,24 @@ struct ContentView: View {
                     Copyright(mapViewModel.layer.copyright())
                         .position(x: centerX, y: maxY - 8)
                         .frame(maxWidth: maxX, alignment: .trailing)
-                    // TODO debug center
-                    Circle()
-                        .fill(.clear)
-                        .frame(width: 5.0,
-                               height: 5.0,
-                               alignment: .center)
+                    
+                    if mapViewModel.crosshairSetting {
+                        let crosshairOpacity = 0.5
+                        Rectangle()
+                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
+                            .frame(width: 1.0, height: 25.0, alignment: .center)
+                        Rectangle()
+                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
+                            .frame(width: 25.0, height: 1.0, alignment: .center)
+                        Circle()
+                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
+                            .overlay {
+                                Circle()
+                                    .fill(.red.opacity(crosshairOpacity))
+                                    .frame(width: 3.0,height: 3.0, alignment: .center)
+                            }
+                            .frame(width: 21.0, height: 21.0,alignment: .center)
+                    }
                 }
                 .frame(width: bounds.width, height: bounds.height)
                 .position(x: centerX, y: centerY)

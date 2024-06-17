@@ -76,6 +76,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var dotOffsetY: CGFloat = .zero
     
     @AppStorage("nightModeSetting") var nightModeSetting: Bool = false
+    @AppStorage("crosshairSetting") var crosshairSetting: Bool = false
     @AppStorage("headingOffsetSetting") var headingOffsetSetting: Double = .zero
     @AppStorage("selectedLayerIdSetting") var selectedLayerIdSetting: String = defaultLayers[0].id
     
