@@ -85,7 +85,7 @@ struct GlobalMercator {
         let res = resolution(zoom: zoom);
         let px = (meters.mx + originShift) / res;
         let py = (meters.my + originShift) / res;
-        return Pixels( px: px, py: py);
+        return Pixels(px: px, py: py);
     }
 
     func PixelsToMeters(pixels: Pixels, zoom: Int) -> Meters {

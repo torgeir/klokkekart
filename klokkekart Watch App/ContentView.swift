@@ -203,21 +203,23 @@ struct ContentView: View {
                         .frame(maxWidth: maxX, alignment: .trailing)
                     
                     if mapViewModel.crosshairSetting {
-                        let crosshairOpacity = 0.5
+                        let crosshairOpacity = 1.0
+                        let crosshairColor: Color = .red
                         Rectangle()
-                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
-                            .frame(width: 1.0, height: 25.0, alignment: .center)
+                            .strokeBorder(crosshairColor.opacity(crosshairOpacity), lineWidth: 1)
+                            .frame(width: 2.0, height: 10.0, alignment: .center)
                         Rectangle()
-                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
-                            .frame(width: 25.0, height: 1.0, alignment: .center)
-                        Circle()
-                            .strokeBorder(.blue.opacity(crosshairOpacity), lineWidth: 1)
-                            .overlay {
-                                Circle()
-                                    .fill(.red.opacity(crosshairOpacity))
-                                    .frame(width: 3.0,height: 3.0, alignment: .center)
-                            }
-                            .frame(width: 21.0, height: 21.0,alignment: .center)
+                            .strokeBorder(crosshairColor.opacity(crosshairOpacity), lineWidth: 1)
+                            .frame(width: 10.0, height: 2.0, alignment: .center)
+                        // TODO remove?
+                        //Circle()
+                        //    .strokeBorder(crosshairColor.opacity(crosshairOpacity), lineWidth: 1)
+                        //    .frame(width: 21.0, height: 21.0,alignment: .center)
+                            //.overlay {
+                            //    Circle()
+                            //        .fill(.red.opacity(crosshairOpacity))
+                            //        .frame(width: 3.0,height: 3.0, alignment: .center)
+                            //}
                     }
                 }
                 .frame(width: bounds.width, height: bounds.height)

@@ -129,7 +129,7 @@ struct OsmLayer : Layer {
     
     var id: String
     var url: String
-    var maxZoom: Int = 18
+    var maxZoom: Int = 19
     var extraCopyright: String = ""
     
     func copyright() -> String { "© OpenStreetMap contributors\(extraCopyright != "" ? "\n\(extraCopyright)" : "")" }
