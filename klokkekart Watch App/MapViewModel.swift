@@ -225,7 +225,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.offsetY += panOffsetY
         
         // TODO remove dependency of panOffsetX, panOffsetY
-        let (newCenterPixels, newCenterMeters) = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
+        let (_, newCenterMeters) = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
         
         self.panOffsetX = .zero
         self.panOffsetY = .zero
