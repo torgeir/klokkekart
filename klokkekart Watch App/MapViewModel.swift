@@ -66,6 +66,9 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     @Published var zoom: Int = defaultZoom
     
+    @Published var initialTx: Int = .zero
+    @Published var initialTy: Int = .zero
+    
     @Published var offsetX: CGFloat = .zero
     @Published var offsetY: CGFloat = .zero
     @Published var panOffsetX: CGFloat = .zero
@@ -161,7 +164,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 let latlon = Latlon(lat: coord.latitude, lon: coord.longitude)
                 self.locationMeters = proj.LatlonToMeters(latlon: latlon)
                 if (self.followOverridden) {
-                    self.setDotOffset(newCenterMeters: centerMeters)
+                    let centerPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
+                    self.setDotOffset(newCenterPixels: centerPixels)
                 }
                 else {
                     self.updateZoom(newCenterMeters: locationMeters)
@@ -191,8 +195,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func handlePan(by: DragGesture.Value) {
         if (following) {
             followOverridden = true
-        } else {
-            followOverridden = false
         }
         
         // view moves left/west,  map moves right => panOffsetX < 0
@@ -207,7 +209,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #endif
         
         // TODO remove dependency of panOffsetX, panOffsetY
-        let newCenterMeters = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
+        let (_, newCenterMeters) = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
         self.tile = self.tileForMeters(meters: newCenterMeters)
         
         self.loadTiles()
@@ -223,7 +225,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.offsetY += panOffsetY
         
         // TODO remove dependency of panOffsetX, panOffsetY
-        let newCenterMeters = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
+        let (newCenterPixels, newCenterMeters) = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
         
         self.panOffsetX = .zero
         self.panOffsetY = .zero
@@ -235,10 +237,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("center meters (after pan) @ \(centerMeters)")
         #endif
 
-        self.setDotOffset(newCenterMeters: newCenterMeters)
+        // TODO this should probably be removed, cause slight pixel movements on each pan ??
+        //self.setDotOffset(newCenterPixels: newCenterPixels)
     }
     
-    func calculateNewCenterMeters(centerMeters: Meters) -> Meters {
+    func calculateNewCenterMeters(centerMeters: Meters) -> (Pixels, Meters) {
         // pixels are measured from left,bottom => 0,0
         
         // don't save meters, as we have not moved,
@@ -253,8 +256,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let centerOfScreenIsAtPixelsFromTileBottomLeft =
             oldCenterPixels.sub(pixels: topLeftPixels)
         print("centerOfScreenIsAtPixelsFromTileBottomLeft \(centerOfScreenIsAtPixelsFromTileBottomLeft)")
-        #endif
-        #if false
         print("pixels was \(oldPixels)")
         print("meters was \(locationMeters)")
         #endif
@@ -272,11 +273,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("meters are \(newCenterMeters)")
         #endif
         
-        return newCenterMeters
+        return (newCenterPixels, newCenterMeters)
     }
     
-    func setDotOffset(newCenterMeters: Meters) {
-        let newCenterPixels = proj.MetersToPixels(meters: newCenterMeters, zoom: zoom)
+    func setDotOffset(newCenterPixels: Pixels) {
         let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
         let dotCenterOffsetX = newCenterPixels.px - dotLocationPixels.px
         let dotCenterOffsetY = newCenterPixels.py - dotLocationPixels.py
@@ -303,11 +303,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {
-        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - self.tile.tilepos.tx)
+        CGFloat(tile.w + padding) * CGFloat(tile.tilepos.tx - self.initialTx)
     }
     
     func tileOffsetY(tile: Tile) -> CGFloat {
-        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - self.tile.tilepos.ty)
+        CGFloat(tile.h + padding) * CGFloat(tile.tilepos.ty - self.initialTy)
     }
 
     func zoomIn() {
@@ -332,6 +332,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // find the correct tile, that contains the meter value
         self.tile = self.tileForMeters(meters: newCenterMeters)
+        self.initialTx = tile.tilepos.tx
+        self.initialTy = tile.tilepos.ty
         
         // find the center of the tile, and calculate the distance from the location
         let newTilepos = proj.MetersToTilepos(meters: newCenterMeters, zoom: zoom)
@@ -353,7 +355,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.offsetY = -centerOffsetY
         
         self.centerMeters = newCenterMeters
-        self.setDotOffset(newCenterMeters: self.centerMeters)
+        self.setDotOffset(newCenterPixels: newCenterPixels)
         
         #if DEBUG
         let topLeftMeters = proj.TileTopLeftMeters(tilepos: newTilepos, zoom: zoom)
