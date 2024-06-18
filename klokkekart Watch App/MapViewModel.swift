@@ -129,7 +129,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.selectedLayerIdSetting = layer.id
         self.layer = layer
         self.tileFetcher = TileFetcher(layer: layer)
-        self.loadTiles()
+        
+        Task { await self.loadTiles() }
     }
     
     func startRotateMap() { headingRotatesMap = true }
@@ -212,7 +213,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let (_, newCenterMeters) = self.calculateNewCenterMeters(centerMeters: self.centerMeters)
         self.tile = self.tileForMeters(meters: newCenterMeters)
         
-        self.loadTiles()
+        Task { await self.loadTiles() }
     }
 
     func commitPan() {
@@ -236,9 +237,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #if DEBUG
         print("center meters (after pan) @ \(centerMeters)")
         #endif
-
-        // TODO this should probably be removed, cause slight pixel movements on each pan ??
-        //self.setDotOffset(newCenterPixels: newCenterPixels)
     }
     
     func calculateNewCenterMeters(centerMeters: Meters) -> (Pixels, Meters) {
@@ -371,7 +369,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         //render at center screen, without respecting position
         //self.offsetX = 0; self.offsetY = 0;
         
-        self.loadTiles()
+        Task { await self.loadTiles() }
     }
     
     func tileForMeters(meters: Meters) -> Tile {
@@ -398,8 +396,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         ]
     }
     
-    func loadTiles() {
-        self.tiles = ([tile] 
+    func loadTiles() async {
+        self.tiles = ([tile]
                       + neighbors(tile: tile)
         ).filter(isTileVisible)
         self.tiles.forEach(pullImage)
@@ -422,6 +420,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         let visible = {
             // TODO handle padding when map is rotated, needs pythagoras
+            // TODO let paddingToFillGapWhenMapIsAt45DegreeAngle
             if tileX > maxWidth || tileXmax < 0 {
                 return false
             }
