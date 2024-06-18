@@ -20,7 +20,7 @@ let pi_2 = pi * 2;
 let _180_div_pi = 180 / pi;
 
 struct Tilepos       { let tx:  Int, ty:  Int }
-struct GoogleTilepos { let tx:  Int, ty:  Int }
+struct GoogleTilepos  { let tx:  Int, ty:  Int }
 struct Latlon        { let lat: CGFloat, lon: CGFloat }
 struct Meters        {
     let mx:  CGFloat;

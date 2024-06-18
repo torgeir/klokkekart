@@ -57,8 +57,6 @@ struct GeonorgeLayer : Layer {
         return y
     }
 
-    let useMercator = true
-    
     // https://gis.stackexchange.com/questions/34276/whats-the-difference-between-epsg4326-and-epsg900913
     //    They are not the same. EPSG:4326 refers to WGS 84 whereas EPSG:900913 refers to WGS84 Web Mercator.
     //  EPSG:4326 treats the earth as an ellipsoid while EPSG:900913 treats it as a sphere.

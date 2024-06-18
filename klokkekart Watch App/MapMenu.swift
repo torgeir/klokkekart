@@ -10,6 +10,7 @@ import SwiftUI
 
 let menuButtonSize = 40.0
 
+// TODO delete me?
 struct MapMenu : View {
     var color: Color = .white
     

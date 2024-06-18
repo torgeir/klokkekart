@@ -169,7 +169,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     self.setDotOffset(newCenterPixels: centerPixels)
                 }
                 else {
-                    self.updateZoom(newCenterMeters: locationMeters)
+                    self.zoomTo(newCenterMeters: locationMeters)
                 }
                 
                 self.locationAccuracy = loc?.horizontalAccuracy ?? -1
@@ -331,10 +331,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func zoomToCenter() {
-        updateZoom(newCenterMeters: centerMeters)
+        zoomTo(newCenterMeters: centerMeters)
     }
     
-    func updateZoom(newCenterMeters: Meters) {
+    func zoomTo(newCenterMeters: Meters) {
         self.tileFetcher.resetPreventFetchCache()
         
         // zoom has already been set before this code is run,
