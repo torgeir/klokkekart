@@ -192,7 +192,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             .store(in: &cancellables)
     }
     
-
+    // Pan offset is measured by finger movement
+    //          +
+    //          |
+    //          |
+    //  +-------+-------> by.translation.width
+    //          |
+    //          |
+    //          v
+    // by.translation.height
     func handlePan(by: DragGesture.Value) {
         if (following) {
             followOverridden = true
@@ -239,6 +247,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #endif
     }
     
+    // Pixels are mesured from left, bottom
+    //  y
+    //  ^
+    //  |    /
+    //  |   /
+    //  |  /
+    //  | /
+    //  +-----> x
+    // 0,0
     func calculateNewCenterMeters(centerMeters: Meters) -> (Pixels, Meters) {
         // pixels are measured from left,bottom => 0,0
         
