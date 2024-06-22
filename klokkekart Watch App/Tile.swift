@@ -14,6 +14,9 @@ struct Tile: Identifiable {
     let z: Int
     let w: Int = tileSize
     let h: Int = tileSize
+    // TODO mulighet for å slå opp bilde herfra,
+    // slik at du kan finne det over eller det under i z-planet,
+    // basert på hvilken vei man zoomer
     var image: UIImage?
     var color: Color? = Color.init(hue: 0.0, saturation: 0.0, brightness: 0.2)
 }

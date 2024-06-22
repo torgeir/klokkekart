@@ -84,8 +84,8 @@ struct ContentView: View {
                         
                         ZStack {
                             ForEach(mapViewModel.tiles, id: \.id) { tile in
-                                let w = CGFloat(tile.w)
-                                let h = CGFloat(tile.h)
+                                let w = CGFloat(tile.w) * mapViewModel.scale()
+                                let h = CGFloat(tile.h) * mapViewModel.scale()
                                 
                                 let x = mapViewModel.centerX() + mapViewModel.tileOffsetX(tile: tile)
                                 let y = mapViewModel.centerY() + mapViewModel.tileOffsetY(tile: tile)
@@ -95,29 +95,31 @@ struct ContentView: View {
                                         .resizable()
                                         .position(x: x, y: y)
                                         .frame(width: w, height: h, alignment: .center)
+                                        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
                                 } else {
-                                    tile.color
+                                    Color(red: 200.0, green: 200.0, blue: 200.0)
                                         .position(x: x, y: y)
                                         .frame(width: w, height: h, alignment: .center)
+                                        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
                                 }
                             }
                             
                         }
                         .focusable()
                         .digitalCrownRotation(
-                            detent: $mapViewModel.zoom,
-                            from: mapViewModel.layer.zoomMin(),
-                            through: mapViewModel.layer.zoomMax(),
-                            by: 1,
+                            detent: $mapViewModel.zoomC,
+                            from: CGFloat(mapViewModel.layer.zoomMin()),
+                            through: CGFloat(mapViewModel.layer.zoomMax()),
+                            by: 0.0001,
                             sensitivity: .low,
                             isContinuous: false,
-                            isHapticFeedbackEnabled: true,
+                            isHapticFeedbackEnabled: false,
                             onChange: { value in
-                                //print("crown change", value)
+                                print("crown change", value)
+                                mapViewModel.zoomToCenter()
                             },
                             onIdle: {
                                 print("zoom is \(mapViewModel.zoom)")
-                                mapViewModel.zoomToCenter()
                             }
                         )
                         .onTapGesture(count: 2) { mapViewModel.zoomIn() }
