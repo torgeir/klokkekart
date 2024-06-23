@@ -64,7 +64,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     @Published var cache = NSCache<NSString, UIImage>()
     
-    @Published var zoom: Int = defaultZoom
     @Published var zoomC: CGFloat = CGFloat(defaultZoom)
     
     func scale() -> CGFloat {
@@ -108,6 +107,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
         listenForCoordinates()
+        locationManager.requestLocation()
     }
     
     func allLayers() -> [any Layer] {
@@ -136,6 +136,9 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.selectedLayerIdSetting = layer.id
         self.layer = layer
         self.tileFetcher = TileFetcher(layer: layer)
+        
+        // clear tiles that may be from other layer
+        self.tiles.removeAll()
         
         Task { await self.loadTiles() }
     }
@@ -172,7 +175,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 let latlon = Latlon(lat: coord.latitude, lon: coord.longitude)
                 self.locationMeters = proj.LatlonToMeters(latlon: latlon)
                 if (self.followOverridden) {
-                    let centerPixels = proj.MetersToPixels(meters: centerMeters, zoom: zoom)
+                    let centerPixels = proj.MetersToPixels(meters: centerMeters, zoom: Int(zoomC))
                     self.setDotOffset(newCenterPixels: centerPixels)
                 }
                 else {
@@ -208,17 +211,17 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     //          |
     //          v
     // by.translation.height
-    func handlePan(by: DragGesture.Value) {
+    func handlePan(by: CGSize) {
         if (following) {
             followOverridden = true
         }
         
         // view moves left/west,  map moves right => panOffsetX < 0
         // view moves right/east, map moves left  => panOffsetX > 0
-        self.panOffsetX = by.translation.width
+        self.panOffsetX = by.width
         // view moves down/south, map moves up    => panOffsetY < 0
         // view moves up/north,   map moves down  => panOffsetY > 0
-        self.panOffsetY = by.translation.height
+        self.panOffsetY = by.height
         
         #if false
         print("panOffset \(panOffsetX),\(panOffsetY)")
@@ -305,7 +308,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         )
         let newCenterMeters = proj.PixelsToMeters(pixels: newCenterPixels, zoom: zoom)
         
-        #if DEBUG
+        #if false
         print("pixels are \(newCenterPixels)")
         print("meters are \(newCenterMeters)")
         #endif
@@ -321,7 +324,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         //print("dot offset \(dotCenterOffsetX),\(dotCenterOffsetY)")
         self.dotOffsetX = offsetX + dotCenterOffsetX
         self.dotOffsetY = offsetY - dotCenterOffsetY
-        print("dot offset \(dotOffsetX),\(dotOffsetY)")
+        //print("dot offset \(dotOffsetX),\(dotOffsetY)")
     }
     
     // (o + p) s
@@ -342,11 +345,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {
-        CGFloat(CGFloat(tile.w) * scale() + CGFloat(padding)) * CGFloat(tile.tilepos.tx - self.initialTx)
+        (CGFloat(tile.w) * scale() + CGFloat(padding))
+          * CGFloat(tile.tilepos.tx - self.initialTx)
     }
     
     func tileOffsetY(tile: Tile) -> CGFloat {
-        CGFloat(CGFloat(tile.h) * scale() + CGFloat(padding)) * CGFloat(tile.tilepos.ty - self.initialTy)
+        (CGFloat(tile.h) * scale() + CGFloat(padding))
+          * CGFloat(tile.tilepos.ty - self.initialTy)
     }
 
     func zoomIn() {
@@ -398,7 +403,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.centerMeters = newCenterMeters
         self.setDotOffset(newCenterPixels: newCenterPixels)
         
-        #if DEBUG
+        #if false
         let topLeftMeters = proj.TileTopLeftMeters(tilepos: newTilepos, zoom: zoom)
         let topLeftPixels = proj.MetersToPixels(meters: topLeftMeters, zoom: zoom)
         print("tile top left: meters: \(topLeftMeters)")
@@ -440,9 +445,24 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         ]
     }
     
+    func tileZ(z: Int) -> Tile {
+        let tilepos = proj.MetersToTilepos(meters: self.centerMeters, zoom: z)
+        let tile = Tile(tilepos: proj.toGoogleTilepos(tilepos: tilepos, zoom: z), z: z)
+        return tile
+    }
+    
+    
+    
     func loadTiles() async {
-        self.tiles.removeAll(where: { t in !isTileVisible(tile: t) })
-        let tiles = ([tile] + neighbors(tile: tile)).filter{ t in isTileVisible(tile:t) }
+        var tiles: [Tile] = []
+        tiles.append(tileZ(z: self.tile.z - 1))
+        tiles.append(tileZ(z: self.tile.z + 1))
+        tiles.append(contentsOf:
+            ([tile]
+                 + neighbors(tile: tile)
+            )
+            .filter { t in isTileVisible(tile: t) }
+        )
         for (tile) in tiles {
             let existingTileIndex = self.tiles.firstIndex(where: {
                 $0.z == tile.z
@@ -451,14 +471,20 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             })
             if existingTileIndex == nil {
                 self.tiles.append(tile)
+                self.pullImage(tile: tile)
             }
         }
-        self.tiles.forEach(pullImage)
         self.loadCachedImages()
         
-        #if false
+        #if DEBUG
         print("# \(self.tiles.count)")
         #endif
+        
+        Task(priority: .low) {
+            self.tiles.removeAll(where: { t in
+                t.z == self.tile.z && !isTileVisible(tile: t)
+            })
+        }
     }
     
     func isTileVisible(tile: Tile) -> Bool {
@@ -496,9 +522,10 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             let url = tileUrl(tile: tile)
             if let image = cache.object(forKey: url),
                let index = tiles.firstIndex(where: {
-                   $0.tilepos.tx == tile.tilepos.tx
+                   $0.image == nil
+                   && $0.z == tile.z
+                   && $0.tilepos.tx == tile.tilepos.tx
                    && $0.tilepos.ty == tile.tilepos.ty
-                   && $0.image == nil
                }) {
                 tiles[index].image = image
             }
@@ -516,7 +543,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 .sink { [weak self] image in
                     guard let self = self else { return }
                     if image != nil {
+                        #if DEBUG
+                        print("got \(url)")
+                        #endif
                         self.cache.setObject(image!, forKey: url)
+                        // TODO not fast
                         self.loadCachedImages()
                     }
                 }

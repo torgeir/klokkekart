@@ -16,6 +16,8 @@ struct ContentView: View {
     
     let bounds = WKInterfaceDevice.current().screenBounds
     
+    @GestureState var dragOffset = CGSize.zero
+    
     @StateObject var mapViewModel = MapViewModel()
     @Environment(\.scenePhase) var scenePhase
     
@@ -95,12 +97,7 @@ struct ContentView: View {
                                         .resizable()
                                         .position(x: x, y: y)
                                         .frame(width: w, height: h, alignment: .center)
-                                        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
-                                } else {
-                                    Color(red: 200.0, green: 200.0, blue: 200.0)
-                                        .position(x: x, y: y)
-                                        .frame(width: w, height: h, alignment: .center)
-                                        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+                                        .transition(.opacity.animation(.easeInOut(duration: 0.5)))
                                 }
                             }
                             
@@ -110,23 +107,42 @@ struct ContentView: View {
                             detent: $mapViewModel.zoomC,
                             from: CGFloat(mapViewModel.layer.zoomMin()),
                             through: CGFloat(mapViewModel.layer.zoomMax()),
-                            by: 0.0001,
-                            sensitivity: .low,
+                            by: 0.001,
+                            sensitivity: .medium,
                             isContinuous: false,
                             isHapticFeedbackEnabled: false,
                             onChange: { value in
-                                print("crown change", value)
+                                //print("crown change", value)
                                 mapViewModel.zoomToCenter()
                             },
                             onIdle: {
-                                print("zoom is \(mapViewModel.zoom)")
+                                print("zoom is \(mapViewModel.zoomC)")
                             }
                         )
                         .onTapGesture(count: 2) { mapViewModel.zoomIn() }
                         .gesture(
                             DragGesture()
-                                .onChanged { value in mapViewModel.handlePan(by: value) }
-                                .onEnded { _ in mapViewModel.commitPan() })
+                                .updating($dragOffset) { value, state, _ in state = value.translation }
+                                .onChanged { value in
+                                    mapViewModel.handlePan(by: value.translation)
+                                }
+                                .onEnded { gesture in
+                                    let predictedEnd = gesture.predictedEndTranslation
+                                    print("prediction w:\(abs(predictedEnd.width - mapViewModel.panOffsetX))")
+                                    print("prediction h:\(abs(predictedEnd.height - mapViewModel.panOffsetY))")
+                                    if (abs(predictedEnd.width - mapViewModel.panOffsetX) < 25 &&
+                                        abs(predictedEnd.height - mapViewModel.panOffsetY) < 25) {
+                                        mapViewModel.commitPan()
+                                    }
+                                    else {
+                                        // https://cubic-bezier.com/#.1,.9,.5,1
+                                        withAnimation(Animation.timingCurve(0.1, 0.9, 0.5, 1.0, duration: 1)) {
+                                            mapViewModel.handlePan(by: predictedEnd)
+                                        } completion: {
+                                            mapViewModel.commitPan()
+                                        }
+                                    }
+                                })
                         .onAppear { mapViewModel.zoomToCenter() }
                         ZStack {
                             if (mapViewModel.following
@@ -145,7 +161,6 @@ struct ContentView: View {
                                         .frame(width: 100.0,
                                                height: 100.0,
                                                alignment: .center)
-                                        
                                 }
                                 Dot(accuracy: mapViewModel.locationAccuracy)
                                     //.border(.green)
@@ -233,29 +248,29 @@ struct ContentView: View {
                     switch scenePhase {
                     case .active:
                         print("schenePhase: active")
-                        if (mapViewModel.following) {
-                            mapViewModel.locationManager.startListening()
-                        }
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyBestForNavigation,
                             distanceFilter: 10.0
                         )
-                    case .inactive:
-                        print("schenePhase: inactive")
                         if (mapViewModel.following) {
                             mapViewModel.locationManager.startListening()
                         }
+                    case .inactive:
+                        print("schenePhase: inactive")
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyHundredMeters,
                             distanceFilter: 100.0
                         )
+                        if (mapViewModel.following) {
+                            mapViewModel.locationManager.startListening()
+                        }
                     default:
                         print("schenePhase: background")
-                        mapViewModel.locationManager.stop()
                         mapViewModel.changeLocationQuery(
                             desiredAccuracy: kCLLocationAccuracyThreeKilometers,
                             distanceFilter: 1000.0
                         )
+                        mapViewModel.locationManager.stop()
                     }
                 }
             }

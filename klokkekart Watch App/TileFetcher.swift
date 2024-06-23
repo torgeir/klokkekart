@@ -30,16 +30,17 @@ struct TileFetcher {
     
     func fetchTile(zoom: Int, x: Int, y: Int, tileSize: Int) -> Future<UIImage?, Never> {
         // don't fetch multiple times at once
-        let url = layer.url(z: zoom, x: x, y: y, tileSize: tileSize)
-        preventFetchCache.setObject(url, forKey: url)
+        let urlKey = layer.url(z: zoom, x: x, y: y, tileSize: tileSize)
+        preventFetchCache.setObject(urlKey, forKey: urlKey)
         
         return Future { promise in
             
-            #if DEBUG
+            #if false
             print("fetching \(url)")
             #endif
             
-            guard let url = URL(string: url as String) else {
+            guard let url = URL(string: urlKey as String) else {
+                preventFetchCache.removeObject(forKey: urlKey)
                 promise(.success(nil))
                 return
             }
@@ -47,14 +48,17 @@ struct TileFetcher {
             let task = URLSession.shared.dataTask(with: url) { data, response, error in
                 if (error != nil) {
                     print("ERROR: \(error!)")
+                    preventFetchCache.removeObject(forKey: urlKey)
                 }
                 guard
                     let data = data,
                     let image = UIImage(data: data) else {
                         promise(.success(nil))
+                        preventFetchCache.removeObject(forKey: urlKey)
                         return
                     }
 
+                preventFetchCache.removeObject(forKey: urlKey)
                 promise(.success(image))
             }
 
