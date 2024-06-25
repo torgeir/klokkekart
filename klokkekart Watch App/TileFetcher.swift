@@ -35,7 +35,8 @@ class ImageCache : ObservableObject {
     }
 }
 
-struct TileFetcher {
+class TileFetcher {
+    var alreadyFetching = Set<NSString>()
     let cache: ImageCache
     
     let images : PassthroughSubject<TileKey, Never> = .init()
@@ -45,14 +46,16 @@ struct TileFetcher {
     }
         
     func fetchTile(layer: any Layer, tileKey: TileKey, retries: Int = 0) -> Void {
-        if let _ = cache.get(url: layer.url(tileKey: tileKey)) {
+        let url = layer.url(tileKey: tileKey)
+        
+        if let _ = cache.get(url: url) {
             print("found in cache \(tileKey)")
             return self.images.send(tileKey)
         }
         
-        let url = layer.url(tileKey: tileKey)
         if retries > 2 {
             print("gave up fetching \(tileKey)")
+            self.alreadyFetching.remove(url)
             return
         }
     
@@ -62,6 +65,7 @@ struct TileFetcher {
         
         guard let fetchUrl = URL(string: url as String) else {
             print("error creating url \(tileKey), retry #\(retries + 1)")
+            self.alreadyFetching.remove(url)
             return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
         }
 
@@ -69,15 +73,18 @@ struct TileFetcher {
             .dataTask(with: fetchUrl) { data, response, error in
                 if (error != nil) {
                     print("error fetching \(tileKey), retry #\(retries + 1)")
+                    self.alreadyFetching.remove(url)
                     return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
                 }
                 guard
                     let data = data,
                     let image = UIImage(data: data) else {
                         print("no image fetching \(tileKey), retry #\(retries + 1)")
+                        self.alreadyFetching.remove(url)
                         return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
                     }
                 
+                self.alreadyFetching.remove(url)
                 self.cache.put(url: layer.url(tileKey: tileKey), image: image)
                 self.images.send(tileKey)
             }
