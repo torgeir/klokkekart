@@ -105,7 +105,7 @@ struct ContentView: View {
                             detent: $mapViewModel.zoomC,
                             from: CGFloat(mapViewModel.layer.zoomMin()),
                             through: CGFloat(mapViewModel.layer.zoomMax()),
-                            by: 0.05,
+                            by: 0.08,
                             sensitivity: .medium,
                             isContinuous: false,
                             isHapticFeedbackEnabled: true,

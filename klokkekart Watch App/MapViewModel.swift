@@ -463,19 +463,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         var tiles: [Tile] = []
         tiles.append(tileZ(z: self.tile.z - 1))
         tiles.append(tileZ(z: self.tile.z + 1))
-        
         tiles.append(contentsOf:
-            ([tile] + neighbors(tile: tile)
-            )
+            ([tile] + neighbors(tile: tile))
             .filter { t in isTileVisible(tile: t) }
         )
         for (tile) in tiles {
             let existingTileIndex = self.tiles[tile.id]
             if existingTileIndex == nil {
                 self.tiles[tile.id] = tile
-                Task {
-                    tileFetcher.fetchTile(layer: layer, tileKey: tile.id)
-                }
+                Task { tileFetcher.fetchTile(layer: layer, tileKey: tile.id) }
             }
         }
         
