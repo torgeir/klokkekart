@@ -9,60 +9,78 @@ import Foundation
 import SwiftUI
 import Combine
 
-struct TileFetcher {
+class Wrapper<T: Hashable> : NSObject {
+    let value: T
+    init(_ _struct: T) {
+        value = _struct
+    }
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? Wrapper else { return false }
+        return self.value == other.value
+    }
+    override var hash: Int {
+        return value.hashValue
+    }
+}
+class ImageCache : ObservableObject {
+    let cache = NSCache<NSString, UIImage>()
     
-    let layer: any Layer
-    let preventFetchCache: NSCache<NSString, NSString>
-    
-    init(layer: any Layer) {
-        self.layer = layer
-        self.preventFetchCache = NSCache<NSString, NSString>()
+    func get(url: NSString) -> UIImage? {
+        return cache.object(forKey: url)
     }
     
-    func hasFetchedTile(zoom: Int, x: Int, y: Int) -> Bool {
-        let url = layer.url(z: zoom, x: x, y: y, tileSize: tileSize)
-        return self.preventFetchCache.object(forKey: url) != nil
+    func put(url: NSString, image: UIImage) {
+        cache.setObject(image, forKey: url)
+        objectWillChange.send()
     }
-    
-    func resetPreventFetchCache() {
-        self.preventFetchCache.removeAllObjects()
-    }
-    
-    func fetchTile(zoom: Int, x: Int, y: Int, tileSize: Int) -> Future<UIImage?, Never> {
-        // don't fetch multiple times at once
-        let urlKey = layer.url(z: zoom, x: x, y: y, tileSize: tileSize)
-        preventFetchCache.setObject(urlKey, forKey: urlKey)
-        
-        return Future { promise in
-            
-            #if false
-            print("fetching \(url)")
-            #endif
-            
-            guard let url = URL(string: urlKey as String) else {
-                preventFetchCache.removeObject(forKey: urlKey)
-                promise(.success(nil))
-                return
-            }
+}
 
-            let task = URLSession.shared.dataTask(with: url) { data, response, error in
+struct TileFetcher {
+    let cache: ImageCache
+    
+    let images : PassthroughSubject<TileKey, Never> = .init()
+    
+    init(cache: ImageCache = ImageCache()) {
+        self.cache = cache
+    }
+        
+    func fetchTile(layer: any Layer, tileKey: TileKey, retries: Int = 0) -> Void {
+        if let _ = cache.get(url: layer.url(tileKey: tileKey)) {
+            print("found in cache \(tileKey)")
+            return self.images.send(tileKey)
+        }
+        
+        let url = layer.url(tileKey: tileKey)
+        if retries > 2 {
+            print("gave up fetching \(tileKey)")
+            return
+        }
+    
+        #if true
+        print("fetching \(tileKey)")
+        #endif
+        
+        guard let fetchUrl = URL(string: url as String) else {
+            print("error creating url \(tileKey), retry #\(retries + 1)")
+            return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
+        }
+
+        URLSession.shared
+            .dataTask(with: fetchUrl) { data, response, error in
                 if (error != nil) {
-                    print("ERROR: \(error!)")
-                    preventFetchCache.removeObject(forKey: urlKey)
+                    print("error fetching \(tileKey), retry #\(retries + 1)")
+                    return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
                 }
                 guard
                     let data = data,
                     let image = UIImage(data: data) else {
-                        promise(.success(nil))
-                        preventFetchCache.removeObject(forKey: urlKey)
-                        return
+                        print("no image fetching \(tileKey), retry #\(retries + 1)")
+                        return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
                     }
-
-                preventFetchCache.removeObject(forKey: urlKey)
-                promise(.success(image))
+                
+                self.cache.put(url: layer.url(tileKey: tileKey), image: image)
+                self.images.send(tileKey)
             }
-
-            task.resume()
-        }
+            .resume()
     }
 }

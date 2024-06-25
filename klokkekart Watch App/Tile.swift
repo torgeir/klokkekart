@@ -8,15 +8,29 @@
 import Foundation
 import SwiftUI
 
+struct TileKey: Hashable, Identifiable {
+    var id: String { "\(z)-\(x)-\(y)-\(size)" }
+    let z: Int
+    let x: Int
+    let y: Int
+    let size: Int
+}
+
 struct Tile: Identifiable {
-    let id = UUID()
+    let id: TileKey
     let tilepos: GoogleTilepos
     let z: Int
-    let w: Int = tileSize
-    let h: Int = tileSize
-    // TODO mulighet for å slå opp bilde herfra,
-    // slik at du kan finne det over eller det under i z-planet,
-    // basert på hvilken vei man zoomer
-    var image: UIImage?
-    var color: Color? = Color.init(hue: 0.0, saturation: 0.0, brightness: 0.2)
+    let size: Int = tileSize
+    var image: UIImage? = nil
+    
+    init(tilepos: GoogleTilepos, z: Int, image: UIImage? = nil) {
+        self.tilepos = tilepos
+        self.z = z
+        self.id = TileKey(z: z, x: tilepos.tx, y: tilepos.ty, size: size)
+        self.image = image
+    }
+    
+    func withImage(image: UIImage) -> Tile {
+        Tile(tilepos: tilepos, z: z, image: image)
+    }
 }

@@ -40,7 +40,8 @@ let scale = WKInterfaceDevice.current().screenBounds
 @MainActor
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     var layer: any Layer = defaultLayers[0]
-    var tileFetcher: TileFetcher = TileFetcher(layer: defaultLayers[0])
+    
+    var tileFetcher: TileFetcher = TileFetcher()
     
     private var cancellables = Set<AnyCancellable>()
 
@@ -52,7 +53,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     private var locationMeters = proj.LatlonToMeters(latlon: defaultLatLon)
     
-    @Published var tiles: [Tile] = []
+    @Published var tiles: [TileKey:Tile] = [:]
     @Published var tile: Tile =
     Tile(
         tilepos: proj.toGoogleTilepos(
@@ -62,15 +63,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             zoom: defaultZoom),
         z: defaultZoom)
 
-    @Published var cache = NSCache<NSString, UIImage>()
-    
     @Published var zoomC: CGFloat = CGFloat(defaultZoom)
-    
-    func scale() -> CGFloat {
-        let fraction = (zoomC - CGFloat(Int(zoomC)))
-        let s = 1 + fraction
-        return s
-    }
     
     @Published var initialTx: Int = .zero
     @Published var initialTy: Int = .zero
@@ -100,7 +93,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
 
     func onInitialAppear() {
-        if let layer = 
+        if let layer =
             allLayers()
             .first(where: { layer in layer.id == selectedLayerIdSetting}) {
                 changeLayer(layer: layer)
@@ -108,6 +101,14 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
         listenForCoordinates()
         locationManager.requestLocation()
+        listenForImages()
+    }
+    
+    
+    func scale() -> CGFloat {
+        let fraction = (zoomC - CGFloat(Int(zoomC)))
+        let s = 1 + fraction
+        return s
     }
     
     func allLayers() -> [any Layer] {
@@ -135,7 +136,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func changeLayer(layer: any Layer) {
         self.selectedLayerIdSetting = layer.id
         self.layer = layer
-        self.tileFetcher = TileFetcher(layer: layer)
         
         // clear tiles that may be from other layer
         self.tiles.removeAll()
@@ -165,6 +165,21 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     ) {
         locationManager.locationManager.desiredAccuracy = desiredAccuracy
         locationManager.locationManager.distanceFilter = distanceFilter
+    }
+    
+    func listenForImages() {
+        tileFetcher.images
+            .receive(on: DispatchQueue.main)
+            .sink(receiveValue: { [weak self] tileKey in
+                guard let self = self else { return }
+                guard let tile = self.tiles[tileKey] else { return }
+                #if false
+                print("got \(tile.id)")
+                #endif
+                let image = self.tileFetcher.cache.get(url: layer.url(tileKey: tileKey))
+                self.tiles.updateValue(tile.withImage(image: image!), forKey: tile.id)
+            })
+            .store(in: &cancellables)
     }
     
     func listenForCoordinates() {
@@ -327,7 +342,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         //print("dot offset \(dotOffsetX),\(dotOffsetY)")
     }
     
-    // (o + p) s
     func centerX() -> CGFloat {
         offsetX * scale() + panOffsetX + CGFloat(maxWidth / 2)
     }
@@ -345,12 +359,12 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func tileOffsetX(tile: Tile) -> CGFloat {
-        (CGFloat(tile.w) * scale() + CGFloat(padding))
+        (CGFloat(tile.size) * scale() + CGFloat(padding))
           * CGFloat(tile.tilepos.tx - self.initialTx)
     }
     
     func tileOffsetY(tile: Tile) -> CGFloat {
-        (CGFloat(tile.h) * scale() + CGFloat(padding))
+        (CGFloat(tile.size) * scale() + CGFloat(padding))
           * CGFloat(tile.tilepos.ty - self.initialTy)
     }
 
@@ -364,8 +378,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func zoomTo(newCenterMeters: Meters) {
-        self.tileFetcher.resetPreventFetchCache()
-        
         // zoom has already been set before this code is run,
         // so this code calculates how it affects the placement
         // of the tile on screen (the offset from the center)
@@ -428,10 +440,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         return tile
     }
     
-    func tileUrl(tile: Tile) -> NSString {
-        layer.url(z: tile.z, x: tile.tilepos.tx, y: tile.tilepos.ty, tileSize: tileSize)
-    }
-    
     func neighbors(tile: Tile) -> [Tile] {
         [
             Tile(tilepos: GoogleTilepos(tx: tile.tilepos.tx    , ty: tile.tilepos.ty - 1), z: tile.z), // N
@@ -451,39 +459,36 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         return tile
     }
     
-    
-    
     func loadTiles() async {
         var tiles: [Tile] = []
         tiles.append(tileZ(z: self.tile.z - 1))
         tiles.append(tileZ(z: self.tile.z + 1))
+        
         tiles.append(contentsOf:
-            ([tile]
-                 + neighbors(tile: tile)
+            ([tile] + neighbors(tile: tile)
             )
             .filter { t in isTileVisible(tile: t) }
         )
         for (tile) in tiles {
-            let existingTileIndex = self.tiles.firstIndex(where: {
-                $0.z == tile.z
-                && $0.tilepos.tx == tile.tilepos.tx
-                && $0.tilepos.ty == tile.tilepos.ty
-            })
+            let existingTileIndex = self.tiles[tile.id]
             if existingTileIndex == nil {
-                self.tiles.append(tile)
-                self.pullImage(tile: tile)
+                self.tiles[tile.id] = tile
+                Task {
+                    tileFetcher.fetchTile(layer: layer, tileKey: tile.id)
+                }
             }
         }
-        self.loadCachedImages()
         
-        #if DEBUG
+        #if false
         print("# \(self.tiles.count)")
         #endif
         
         Task(priority: .low) {
-            self.tiles.removeAll(where: { t in
-                t.z == self.tile.z && !isTileVisible(tile: t)
-            })
+            for (tileKey, tile) in self.tiles {
+                if tile.z == self.tile.z && !isTileVisible(tile: tile) {
+                    self.tiles.removeValue(forKey: tileKey)
+                }
+            }
         }
     }
     
@@ -491,11 +496,11 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         // EdgeInsets(top: 55.0, leading: 2.0, bottom: 39.0, trailing: 2.0)
         
         // at top left corner of screen
-        let tileX = Int(centerX() - CGFloat(tile.w)/2.0 * scale() + tileOffsetX(tile: tile))
-        let tileY = Int(centerY() - CGFloat(tile.h)/2.0 * scale() + tileOffsetY(tile: tile))
+        let tileX = Int(centerX() - CGFloat(tile.size)/2.0 * scale() + tileOffsetX(tile: tile))
+        let tileY = Int(centerY() - CGFloat(tile.size)/2.0 * scale() + tileOffsetY(tile: tile))
         
-        let tileXmax = (tileX + Int(CGFloat(tile.w) * scale())),
-            tileYmax = (tileY + Int(CGFloat(tile.h) * scale()))
+        let tileXmax = (tileX + Int(CGFloat(tile.size) * scale())),
+            tileYmax = (tileY + Int(CGFloat(tile.size) * scale()))
         
         let visible = {
             // TODO handle padding when map is rotated, needs pythagoras
@@ -517,41 +522,5 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         return visible
     }
     
-    func loadCachedImages() {
-        for (tile) in tiles {
-            let url = tileUrl(tile: tile)
-            if let image = cache.object(forKey: url),
-               let index = tiles.firstIndex(where: {
-                   $0.image == nil
-                   && $0.z == tile.z
-                   && $0.tilepos.tx == tile.tilepos.tx
-                   && $0.tilepos.ty == tile.tilepos.ty
-               }) {
-                tiles[index].image = image
-            }
-        }
-    }
     
-    func pullImage(tile: Tile) {
-        let url = tileUrl(tile: tile)
-        if cache.object(forKey: url) == nil {
-            if (tileFetcher.hasFetchedTile(zoom: tile.z, x: tile.tilepos.tx, y: tile.tilepos.ty)) {
-                return
-            }
-            tileFetcher.fetchTile(zoom: tile.z, x: tile.tilepos.tx, y: tile.tilepos.ty, tileSize: tileSize)
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] image in
-                    guard let self = self else { return }
-                    if image != nil {
-                        #if DEBUG
-                        print("got \(url)")
-                        #endif
-                        self.cache.setObject(image!, forKey: url)
-                        // TODO not fast
-                        self.loadCachedImages()
-                    }
-                }
-                .store(in: &cancellables)
-        }
-    }
 }

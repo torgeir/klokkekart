@@ -12,7 +12,7 @@ protocol Layer : Hashable, Identifiable {
     func zoomMin() -> Int
     func zoomMax() -> Int
     func isWms() -> Bool
-    func url(z: Int, x: Int, y: Int, tileSize: Int) -> NSString
+    func url(tileKey: TileKey) -> NSString
     func copyright() -> String
 }
 
@@ -65,11 +65,11 @@ struct GeonorgeLayer : Layer {
     //  degree values (-180 to 180 and -90 to 90) while EPSG:900913 has metric values (-20037508.34 to 20037508.34).
     //    EPSG:4326 uses a lat/long coordinate system. Latitudes are = 90 to -90 and Longitudes are = 180 to -180
     //  EPSG:900913 uses an x/y axis coordinate system.
-    func url(z: Int, x: Int, y: Int, tileSize: Int) -> NSString {
-        let longitudeLeft   = xOfColumn(x, zoom: z) // minX
-        let longitudeRight  = xOfColumn(x + 1, zoom: z) // maxX
-        let latitudeBottom = yOfRow(y + 1, zoom: z) // minY
-        let latitudeTop    = yOfRow(y, zoom: z) // maxY
+    func url(tileKey: TileKey) -> NSString {
+        let longitudeLeft   = xOfColumn(tileKey.x, zoom: tileKey.z) // minX
+        let longitudeRight  = xOfColumn(tileKey.x + 1, zoom: tileKey.z) // maxX
+        let latitudeBottom = yOfRow(tileKey.y + 1, zoom: tileKey.z) // minY
+        let latitudeTop    = yOfRow(tileKey.y, zoom: tileKey.z) // maxY
         
         let left   = mercatorXofLongitude(longitudeLeft) // minX
         let right  = mercatorXofLongitude(longitudeRight) // maxX
@@ -82,7 +82,7 @@ struct GeonorgeLayer : Layer {
         // curl -s 'https://wms.geonorge.no/skwms1/wms.topo?service=WMS&request=GetCapabilities' \
         //   | yq --input-format=xml '.WMS_Capabilities.Capability[].Layer[].Name'
         let bboxParams = "bbox=\(left),\(bottom),\(right),\(top)"
-        let tileParams = "crs=EPSG:900913&width=\(tileSize)&height=\(tileSize)&format=image/png"
+        let tileParams = "crs=EPSG:900913&width=\(tileKey.size)&height=\(tileKey.size)&format=image/png"
         let geonorgeWmsParams = "service=WMS&request=GetMap&version=1.3.0"
         let url = "https://wms.geonorge.no/skwms1/\(map)?layers=\(layer)&\(geonorgeWmsParams)&\(tileParams)&\(bboxParams)"
         return url as NSString
@@ -117,8 +117,8 @@ struct KartverketLayer : Layer {
     // - "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/?service=WMTS&request=GetTile&version=1.0.0&layer=\(layer)&style=default&format=image/png&tilematrixset=googlemaps&tilematrix=\(z)&tilecol=\(x)&tilerow=\(y)"
     // - "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/default/googlemaps/\(z)/\(y)/\(x).png"
     // The style is "default", the projection is "googlemaps", taken from the getcapabilities request.
-    func url(z: Int, x: Int, y: Int, tileSize: Int) -> NSString {
-        return "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/default/googlemaps/\(z)/\(y)/\(x).png" as NSString
+    func url(tileKey: TileKey) -> NSString {
+        return "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/default/googlemaps/\(tileKey.z)/\(tileKey.y)/\(tileKey.x).png" as NSString
     }
 }
 
@@ -135,8 +135,8 @@ struct OsmLayer : Layer {
     func zoomMax() -> Int { self.maxZoom }
     func isWms() -> Bool { false }
     
-    func url(z: Int, x: Int, y: Int, tileSize: Int) -> NSString {
-        url.replacing(try! Regex("/z/x/y"), maxReplacements: 1, with: { _ in "/\(z)/\(x)/\(y)" })
+    func url(tileKey: TileKey) -> NSString {
+        url.replacing(try! Regex("/z/x/y"), maxReplacements: 1, with: { _ in "/\(tileKey.z)/\(tileKey.x)/\(tileKey.y)" })
         as NSString
     }
 }

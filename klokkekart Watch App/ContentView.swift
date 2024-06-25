@@ -85,10 +85,9 @@ struct ContentView: View {
                     GeometryReader { geometry in
                         
                         ZStack {
-                            ForEach(mapViewModel.tiles, id: \.id) { tile in
-                                let w = CGFloat(tile.w) * mapViewModel.scale()
-                                let h = CGFloat(tile.h) * mapViewModel.scale()
-                                
+                            ForEach(Array(mapViewModel.tiles.keys), id: \.self) { (tileKey: TileKey) in
+                                let tile = mapViewModel.tiles[tileKey]!
+                                let s = CGFloat(tile.size) * mapViewModel.scale()
                                 let x = mapViewModel.centerX() + mapViewModel.tileOffsetX(tile: tile)
                                 let y = mapViewModel.centerY() + mapViewModel.tileOffsetY(tile: tile)
                                 
@@ -96,21 +95,20 @@ struct ContentView: View {
                                     Image(uiImage: image)
                                         .resizable()
                                         .position(x: x, y: y)
-                                        .frame(width: w, height: h, alignment: .center)
+                                        .frame(width: s, height: s, alignment: .center)
                                         .transition(.opacity.animation(.easeInOut(duration: 0.5)))
                                 }
                             }
-                            
                         }
                         .focusable()
                         .digitalCrownRotation(
                             detent: $mapViewModel.zoomC,
                             from: CGFloat(mapViewModel.layer.zoomMin()),
                             through: CGFloat(mapViewModel.layer.zoomMax()),
-                            by: 0.001,
+                            by: 0.05,
                             sensitivity: .medium,
                             isContinuous: false,
-                            isHapticFeedbackEnabled: false,
+                            isHapticFeedbackEnabled: true,
                             onChange: { value in
                                 //print("crown change", value)
                                 mapViewModel.zoomToCenter()
@@ -130,13 +128,13 @@ struct ContentView: View {
                                     let predictedEnd = gesture.predictedEndTranslation
                                     print("prediction w:\(abs(predictedEnd.width - mapViewModel.panOffsetX))")
                                     print("prediction h:\(abs(predictedEnd.height - mapViewModel.panOffsetY))")
-                                    if (abs(predictedEnd.width - mapViewModel.panOffsetX) < 25 &&
-                                        abs(predictedEnd.height - mapViewModel.panOffsetY) < 25) {
+                                    if (abs(predictedEnd.width - mapViewModel.panOffsetX) < 40 &&
+                                        abs(predictedEnd.height - mapViewModel.panOffsetY) < 40) {
                                         mapViewModel.commitPan()
                                     }
                                     else {
                                         // https://cubic-bezier.com/#.1,.9,.5,1
-                                        withAnimation(Animation.timingCurve(0.1, 0.9, 0.5, 1.0, duration: 1)) {
+                                        withAnimation(Animation.timingCurve(0.1, 0.9, 0.5, 1.0, duration: 0.2)) {
                                             mapViewModel.handlePan(by: predictedEnd)
                                         } completion: {
                                             mapViewModel.commitPan()
