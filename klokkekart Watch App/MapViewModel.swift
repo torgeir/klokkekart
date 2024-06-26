@@ -78,6 +78,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     @AppStorage("nightModeSetting") var nightModeSetting: Bool = false
     @AppStorage("crosshairSetting") var crosshairSetting: Bool = false
+    @AppStorage("hapticFeedbackSetting") var hapticFeedbackSetting: Bool = true
     @AppStorage("headingOffsetSetting") var headingOffsetSetting: Double = .zero
     @AppStorage("selectedLayerIdSetting") var selectedLayerIdSetting: String = defaultLayers[0].id
     
@@ -99,9 +100,9 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 changeLayer(layer: layer)
             }
         centerMeters = proj.LatlonToMeters(latlon: defaultLatLon)
+        listenForImages()
         listenForCoordinates()
         locationManager.requestLocation()
-        listenForImages()
     }
     
     

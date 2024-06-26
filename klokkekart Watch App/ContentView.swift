@@ -67,6 +67,7 @@ struct ContentView: View {
                         }
                         Toggle("Night mode", isOn: $mapViewModel.nightModeSetting)
                         Toggle("Show center", isOn: $mapViewModel.crosshairSetting)
+                        Toggle("Haptic feedback", isOn: $mapViewModel.hapticFeedbackSetting)
                         NavigationLink("Terms of Use", destination: SettingTermsOfUse())
                     }
                     .navigationTitle("Settings")
@@ -108,7 +109,7 @@ struct ContentView: View {
                             by: 0.08,
                             sensitivity: .medium,
                             isContinuous: false,
-                            isHapticFeedbackEnabled: true,
+                            isHapticFeedbackEnabled: mapViewModel.hapticFeedbackSetting,
                             onChange: { value in
                                 //print("crown change", value)
                                 mapViewModel.zoomToCenter()
