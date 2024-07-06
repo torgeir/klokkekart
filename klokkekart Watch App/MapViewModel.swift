@@ -193,7 +193,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 self.locationMeters = proj.LatlonToMeters(latlon: latlon)
                 if (self.followOverridden) {
                     let centerPixels = proj.MetersToPixels(meters: centerMeters, zoom: Int(zoomC))
-                    self.setDotOffset(newCenterPixels: centerPixels)
+                    self.setDotOffset(newCenterPixels: centerPixels, locationMeters: locationMeters)
                 }
                 else {
                     self.zoomTo(newCenterMeters: locationMeters)
@@ -333,7 +333,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         return (newCenterPixels, newCenterMeters)
     }
     
-    func setDotOffset(newCenterPixels: Pixels) {
+    func setDotOffset(newCenterPixels: Pixels, locationMeters: Meters) {
         let zoom = Int(zoomC)
         let dotLocationPixels = proj.MetersToPixels(meters: locationMeters, zoom: zoom)
         let dotCenterOffsetX = newCenterPixels.px - dotLocationPixels.px
@@ -415,7 +415,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.offsetY = -centerOffsetY
         
         self.centerMeters = newCenterMeters
-        self.setDotOffset(newCenterPixels: newCenterPixels)
+        self.setDotOffset(newCenterPixels: newCenterPixels, locationMeters: locationMeters)
         
         #if false
         let topLeftMeters = proj.TileTopLeftMeters(tilepos: newTilepos, zoom: zoom)
