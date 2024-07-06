@@ -59,11 +59,12 @@ class TileFetcher {
         
     func fetchTile(layer: any Layer, tileKey: TileKey, retries: Int = 0) -> Void {
         let url = layer.url(tileKey: tileKey)
+        
         if (self.alreadyFetching.contains(url)) {
             print("already fetching it, bailing.. \(tileKey)")
+            
             return;
         }
-
         self.alreadyFetching.insert(url)
         
         if let _ = cache.get(url: url) {
@@ -106,14 +107,21 @@ class TileFetcher {
                     case .finished:
                         print("finished fetching \(tileKey)")
                     case let .failure(err):
-                        print("fetched err, description: \(err.localizedDescription)")
+                        print("fetch err, description: \(err.localizedDescription)")
                         self.images.send(.failure(TileKeyError(tileKey, retries + 1)))
                     }
                 },
                 receiveValue: { image in
-                    self.cache.put(url: layer.url(tileKey: tileKey), image: image)
-                    self.images.send(.success(tileKey))
                     self.alreadyFetching.remove(url)
+                    //let imageBytes = image.pngData()?.count ?? 0
+                    //if (imageBytes >= 200) {
+                        self.cache.put(url: layer.url(tileKey: tileKey), image: image)
+                        self.images.send(.success(tileKey))
+                    //}
+                    //else {
+                    //    print("fetch err, suspiciously few bytes: \(imageBytes)")
+                    //    self.images.send(.failure(TileKeyError(tileKey, retries + 1)))
+                    //}
                 })
             .store(in:&cancellables)
     }

@@ -19,7 +19,8 @@ let defaultLatLon = olavt
 
 let padding = 0,
     tileSize = 256,
-    defaultZoom = 17
+    defaultZoom = 17,
+    minImageBytes = 200
 
 let proj = GlobalMercator(tileSize: tileSize)
 
@@ -303,10 +304,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             tile.z == self.tile.z && isTileVisible(tile: tile)
         })
         for (tileKey, tile) in visibleTiles {
-            if tile.image == nil {
+            let image: UIImage? = tile.image
+            if image == nil {
                 print("tile has no image \(tileKey), fetching it again")
                 tileFetcher.fetchTile(layer: layer, tileKey: tileKey)
             }
+            //else if (image?.pngData()?.count ?? 0) < minImageBytes {
+            //    print("tile has suspiciously few bytes \(tileKey), fetching it again")
+            //    tileFetcher.fetchTile(layer: layer, tileKey: tileKey)
+            //}
         }
     }
     
