@@ -129,8 +129,8 @@ struct ContentView: View {
                                     let predictedEnd = gesture.predictedEndTranslation
                                     print("prediction w:\(abs(predictedEnd.width - mapViewModel.panOffsetX))")
                                     print("prediction h:\(abs(predictedEnd.height - mapViewModel.panOffsetY))")
-                                    if (abs(predictedEnd.width - mapViewModel.panOffsetX) < 40 &&
-                                        abs(predictedEnd.height - mapViewModel.panOffsetY) < 40) {
+                                    if (abs(predictedEnd.width - mapViewModel.panOffsetX) < 50 &&
+                                        abs(predictedEnd.height - mapViewModel.panOffsetY) < 50) {
                                         mapViewModel.commitPan()
                                     }
                                     else {
