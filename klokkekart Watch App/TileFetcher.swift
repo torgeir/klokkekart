@@ -47,6 +47,7 @@ class TileFetcher {
         
     func fetchTile(layer: any Layer, tileKey: TileKey, retries: Int = 0) -> Void {
         let url = layer.url(tileKey: tileKey)
+        self.alreadyFetching.insert(url)
         
         if let _ = cache.get(url: url) {
             print("found in cache \(tileKey)")
