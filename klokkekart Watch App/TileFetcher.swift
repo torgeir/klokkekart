@@ -68,6 +68,7 @@ class TileFetcher {
         
         if let _ = cache.get(url: url) {
             print("found in cache \(tileKey)")
+            self.alreadyFetching.remove(url)
             return self.images.send(.success(tileKey))
         }
         
@@ -112,6 +113,7 @@ class TileFetcher {
                 receiveValue: { image in
                     self.cache.put(url: layer.url(tileKey: tileKey), image: image)
                     self.images.send(.success(tileKey))
+                    self.alreadyFetching.remove(url)
                 })
             .store(in:&cancellables)
     }
