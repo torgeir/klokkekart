@@ -296,8 +296,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #if DEBUG
         print("center meters (after pan) @ \(centerMeters)")
         #endif
-
-        self.refetchVisibleTilesWithoutImages()
     }
 
     func refetchVisibleTilesWithoutImages() {

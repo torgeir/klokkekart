@@ -115,7 +115,8 @@ struct ContentView: View {
                                 mapViewModel.zoomToCenter()
                             },
                             onIdle: {
-                                print("zoom is \(mapViewModel.zoomC)")
+                                print("zoom settled \(mapViewModel.zoomC)")
+                                mapViewModel.refetchVisibleTilesWithoutImages()
                             }
                         )
                         .onTapGesture(count: 2) { mapViewModel.zoomIn() }
