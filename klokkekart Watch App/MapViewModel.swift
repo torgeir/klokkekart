@@ -172,15 +172,30 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func listenForImages() {
         tileFetcher.images
             .receive(on: DispatchQueue.main)
-            .sink(receiveValue: { [weak self] tileKey in
-                guard let self = self else { return }
-                guard let tile = self.tiles[tileKey] else { return }
-                #if false
-                print("got \(tile.id)")
-                #endif
-                let image = self.tileFetcher.cache.get(url: layer.url(tileKey: tileKey))
-                self.tiles.updateValue(tile.withImage(image: image!), forKey: tile.id)
-            })
+            .sink(
+                receiveValue: { [weak self] tileKeyResult in
+                    guard let self = self else { return }
+                    switch tileKeyResult {
+                    case let .success(tileKey):
+                        guard let tile = self.tiles[tileKey] else { return }
+                        let image = self.tileFetcher.cache.get(url: layer.url(tileKey: tileKey))
+                        self.tiles.updateValue(tile.withImage(image: image!), forKey: tile.id)
+                    case let .failure(tileKeyError):
+                        if tileKeyError.retry < 3 {
+                            DispatchQueue.main
+                                .asyncAfter(deadline: .now() + .seconds(2)) {
+                                    self.tileFetcher.fetchTile(
+                                        layer: self.layer,
+                                        tileKey: tileKeyError.tileKey,
+                                        retries: tileKeyError.retry
+                                    )
+                                }
+                            return
+                        } else {
+                            print("giving up fetching: \(tileKeyError.tileKey), retries: \(tileKeyError.retry)")
+                        }
+                    }
+                })
             .store(in: &cancellables)
     }
     
@@ -281,6 +296,20 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         #if DEBUG
         print("center meters (after pan) @ \(centerMeters)")
         #endif
+
+        self.refetchVisibleTilesWithoutImages()
+    }
+
+    func refetchVisibleTilesWithoutImages() {
+        let visibleTiles = self.tiles.filter({ (tileKey, tile) in
+            tile.z == self.tile.z && isTileVisible(tile: tile)
+        })
+        for (tileKey, tile) in visibleTiles {
+            if tile.image == nil {
+                print("tile has no image \(tileKey), fetching it again")
+                tileFetcher.fetchTile(layer: layer, tileKey: tileKey)
+            }
+        }
     }
     
     // Pixels are mesured from left, bottom

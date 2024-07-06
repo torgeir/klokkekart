@@ -22,6 +22,7 @@ class Wrapper<T: Hashable> : NSObject {
         return value.hashValue
     }
 }
+
 class ImageCache : ObservableObject {
     let cache = NSCache<NSString, UIImage>()
     
@@ -35,11 +36,22 @@ class ImageCache : ObservableObject {
     }
 }
 
+struct TileKeyError : Error {
+    let tileKey: TileKey
+    let retry: Int
+    init(_ tileKey: TileKey, _ retry: Int) {
+        self.tileKey = tileKey
+        self.retry = retry
+    }
+}
+
 class TileFetcher {
     var alreadyFetching = Set<NSString>()
     let cache: ImageCache
     
-    let images : PassthroughSubject<TileKey, Never> = .init()
+    let images : PassthroughSubject<Result<TileKey, TileKeyError>, Never> = .init()
+    
+    private var cancellables = Set<AnyCancellable>()
     
     init(cache: ImageCache = ImageCache()) {
         self.cache = cache
@@ -47,48 +59,60 @@ class TileFetcher {
         
     func fetchTile(layer: any Layer, tileKey: TileKey, retries: Int = 0) -> Void {
         let url = layer.url(tileKey: tileKey)
+        if (self.alreadyFetching.contains(url)) {
+            print("already fetching it, bailing.. \(tileKey)")
+            return;
+        }
+
         self.alreadyFetching.insert(url)
         
         if let _ = cache.get(url: url) {
             print("found in cache \(tileKey)")
-            return self.images.send(tileKey)
+            return self.images.send(.success(tileKey))
         }
         
         if retries > 2 {
-            print("gave up fetching \(tileKey)")
+            print("failsafe: gave up fetching \(tileKey) the \(retries) time")
             self.alreadyFetching.remove(url)
-            return
+            return self.images.send(.failure(TileKeyError(tileKey, retries + 1)))
         }
     
         #if true
-        print("fetching \(tileKey)")
+        if retries > 0 {
+            print("retrying \(tileKey), retries \(retries)")
+        } else {
+            print("fetching \(tileKey)")
+        }
         #endif
         
         guard let fetchUrl = URL(string: url as String) else {
             print("error creating url \(tileKey), retry #\(retries + 1)")
             self.alreadyFetching.remove(url)
-            return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
+            return self.images.send(.failure(TileKeyError(tileKey, retries + 1)))
         }
 
         URLSession.shared
-            .dataTask(with: fetchUrl) { data, response, error in
-                if (error != nil) {
-                    print("error fetching \(tileKey), retry #\(retries + 1)")
-                    self.alreadyFetching.remove(url)
-                    return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
-                }
-                guard
-                    let data = data,
-                    let image = UIImage(data: data) else {
-                        print("no image fetching \(tileKey), retry #\(retries + 1)")
-                        self.alreadyFetching.remove(url)
-                        return self.fetchTile(layer: layer, tileKey: tileKey, retries: retries + 1)
-                    }
-                
-                self.alreadyFetching.remove(url)
-                self.cache.put(url: layer.url(tileKey: tileKey), image: image)
-                self.images.send(tileKey)
+            .dataTaskPublisher(for: fetchUrl)
+            .timeout(.seconds(3), scheduler: DispatchQueue.main) {
+                URLSession.DataTaskPublisher.Failure(.timedOut)
             }
-            .resume()
+            .compactMap { UIImage(data: $0.data) }
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: {
+                    self.alreadyFetching.remove(url)
+                    switch $0 {
+                    case .finished:
+                        print("finished fetching \(tileKey)")
+                    case let .failure(err):
+                        print("fetched err, description: \(err.localizedDescription)")
+                        self.images.send(.failure(TileKeyError(tileKey, retries + 1)))
+                    }
+                },
+                receiveValue: { image in
+                    self.cache.put(url: layer.url(tileKey: tileKey), image: image)
+                    self.images.send(.success(tileKey))
+                })
+            .store(in:&cancellables)
     }
 }
