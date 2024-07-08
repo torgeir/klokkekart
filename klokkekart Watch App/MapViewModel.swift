@@ -45,6 +45,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     var tileFetcher: TileFetcher = TileFetcher()
     
     private var cancellables = Set<AnyCancellable>()
+    private var retryCancellables = Set<AnyCancellable>()
 
     let locationManager = LocationDataManager()
     
@@ -136,8 +137,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func changeLayer(layer: any Layer) {
+        // cancel sink with outstanding retries before switching layer
+        self.retryCancellables.forEach { $0.cancel() }
+        self.retryCancellables.removeAll()
+        
         self.selectedLayerIdSetting = layer.id
         self.layer = layer
+        
+        // connect sink again
+        self.listenForImages()
         
         // clear tiles that may be from other layer
         self.tiles.removeAll()
@@ -199,7 +207,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                         }
                     }
                 })
-            .store(in: &cancellables)
+            .store(in: &retryCancellables)
     }
     
     func listenForCoordinates() {
