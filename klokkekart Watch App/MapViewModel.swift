@@ -151,6 +151,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func mapRotation() -> Double { headingRotatesMap ? -heading : 0.0}
     
     func follow() {
+        panOffsetX = 0
+        panOffsetY = 0
         followOverridden = false
         following = true
         zoomTo(newCenterMeters: centerMeters)
