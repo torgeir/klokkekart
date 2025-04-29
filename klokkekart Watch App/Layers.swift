@@ -110,15 +110,16 @@ struct KartverketLayer : Layer {
     func zoomMax() -> Int { 19 }
 
     // Endpoints to query capabilities
-    // - https://cache.kartverket.no/topo/v1/wmts/1.0.0/?service=WMTS&request=getcapabilities
-    // - https://cache.kartverket.no/toporaster/v1/wmts/1.0.0/?service=WMTS&request=getcapabilities
-    // - https://cache.kartverket.no/topograatone/v1/wmts/1.0.0/?service=WMTS&request=getcapabilities
+    // - https://cache.kartverket.no/v1/wmts/1.0.0/topo/?service=WMTS&request=getcapabilities
+    // - https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/?service=WMTS&request=getcapabilities
+    // - https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/?service=WMTS&request=getcapabilities
     // Use one of two endpoints to query tiles from the wmts service
-    // - "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/?service=WMTS&request=GetTile&version=1.0.0&layer=\(layer)&style=default&format=image/png&tilematrixset=googlemaps&tilematrix=\(z)&tilecol=\(x)&tilerow=\(y)"
-    // - "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/default/googlemaps/\(z)/\(y)/\(x).png"
-    // The style is "default", the projection is "googlemaps", taken from the getcapabilities request.
+    // - "https://cache.kartverket.no/v1/wmts/1.0.0/\(map)/?service=WMTS&request=GetTile&version=1.0.0&layer=\(layer)&style=default&format=image/png&tilematrixset=webmercator&tilematrix=\(z)&tilecol=\(x)&tilerow=\(y)"
+    // - "https://cache.kartverket.no/v1/wmts/1.0.0/\(map)/default/webmercator/\(z)/\(y)/\(x).png"
+    // The style is "default", the projection is "webmercator", taken from the getcapabilities request.
+    // 2025-04: Tiles have moved to appear after the version. googlemaps is no more => webmercator
     func url(tileKey: TileKey) -> NSString {
-        return "https://cache.kartverket.no/\(map)/v1/wmts/1.0.0/default/googlemaps/\(tileKey.z)/\(tileKey.y)/\(tileKey.x).png" as NSString
+        return "https://cache.kartverket.no/v1/wmts/1.0.0/\(map)/default/webmercator/\(tileKey.z)/\(tileKey.y)/\(tileKey.x).png" as NSString
     }
 }
 
